@@ -64,10 +64,10 @@ const DEFAULT_SETTINGS: PricingSettings = {
 };
 
 const DEFAULT_COMPETITORS: CompetitorConfig[] = [
-  { key: "cjm", label: "CJM Digitales", domain: "cjmdigitales.cl", type: "auto", enabled: true },
-  { key: "juegosdigitaleschile", label: "Juegos Digitales Chile", domain: "juegosdigitaleschile.com", type: "woocommerce", enabled: true },
+  { key: "cjm", label: "CJM Digitales", domain: "cjmdigitales.cl", type: "shopify", enabled: true },
+  { key: "juegosdigitaleschile", label: "Juegos Digitales Chile", domain: "juegosdigitaleschile.com", type: "html", enabled: true },
   { key: "mj", label: "MJ Digitales", domain: "mjdigitales.cl", type: "shopify", enabled: true },
-  { key: "infinity", label: "Infinity Games Chile", domain: "infinitygameschile.cl", type: "auto", enabled: true },
+  { key: "infinity", label: "Infinity Games Chile", domain: "infinitygameschile.cl", type: "html", enabled: true },
 ];
 
 const DEFAULT_PSN: PsnConfig = {

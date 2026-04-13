@@ -355,7 +355,7 @@ route("PUT", "/competitors", async (req, res) => {
       key: c.key.trim(),
       label: (c.label || c.key).trim(),
       domain: c.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim(),
-      type: (["shopify", "woocommerce", "auto"].includes(c.type) ? c.type : "auto"),
+      type: (["shopify", "woocommerce", "html", "auto"].includes(c.type) ? c.type : "auto"),
       enabled: c.enabled !== false,
     }));
   store.setCompetitors(clean);

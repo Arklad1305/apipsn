@@ -179,6 +179,7 @@ export function SettingsPanel({ initial, onSaved, onClose }: Props) {
                 <option value="auto">auto-detectar</option>
                 <option value="shopify">Shopify</option>
                 <option value="woocommerce">WooCommerce</option>
+                <option value="html">HTML (sitemap + JSON-LD)</option>
               </select>
               <span className="muted">
                 {c.productCount}
