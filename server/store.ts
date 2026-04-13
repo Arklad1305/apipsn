@@ -58,7 +58,7 @@ const DEFAULT_PSN: PsnConfig = {
   region: "en-US",
   // Placeholder IDs — the user configures the real ones from DevTools.
   // Panel > Ajustes expone ambos.
-  dealsCategoryId: "44d8bb20-653e-431e-8ad0-c0a365f68d2f",
+  dealsCategoryId: "3f772501-f6f8-49b7-abac-874a88ca4897",
   categoryGridHash:
     "4ce7d4ce7a2a43fdf1dc4a8d93aa0cb087897d19ff0a7d7df6e3c829e79ec176",
 };
