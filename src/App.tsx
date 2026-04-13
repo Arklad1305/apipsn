@@ -166,26 +166,32 @@ export function App() {
         </div>
       )}
 
-      {showSettings && settings && (
+      {showSettings && settings ? (
         <SettingsPanel
           initial={settings}
           onSaved={onSavedSettings}
           onClose={() => setShowSettings(false)}
         />
-      )}
-
-      <FiltersBar filters={filters} setFilters={setFilters} count={games.length} />
-
-      {loading ? (
-        <div className="loading">Cargando…</div>
-      ) : games.length === 0 ? (
-        <div className="empty">
-          No hay juegos todavía. Usá <strong>Actualizar ofertas</strong> para
-          consultar PSN, o <strong>Seed demo</strong> para poblar con datos de
-          ejemplo (recomendado si estás en Bolt).
-        </div>
       ) : (
-        <GamesTable games={games} onGameUpdated={updateGameLocal} />
+        <>
+          <FiltersBar
+            filters={filters}
+            setFilters={setFilters}
+            count={games.length}
+          />
+
+          {loading ? (
+            <div className="loading">Cargando…</div>
+          ) : games.length === 0 ? (
+            <div className="empty">
+              No hay juegos todavía. Usá <strong>Actualizar ofertas</strong>{" "}
+              para consultar PSN, o <strong>Seed demo</strong> para poblar con
+              datos de ejemplo (recomendado si estás en Bolt).
+            </div>
+          ) : (
+            <GamesTable games={games} onGameUpdated={updateGameLocal} />
+          )}
+        </>
       )}
     </div>
   );

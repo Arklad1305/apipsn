@@ -84,10 +84,10 @@ export function SettingsPanel({ initial, onSaved, onClose }: Props) {
   return (
     <section className="settings">
       <header>
-        <h2>Ajustes</h2>
-        <button onClick={onClose} className="link">
-          ✕
+        <button onClick={onClose} className="back" title="Volver al panel">
+          <span aria-hidden="true">←</span> Volver al panel
         </button>
+        <h2>Ajustes</h2>
       </header>
 
       <div className="group">
