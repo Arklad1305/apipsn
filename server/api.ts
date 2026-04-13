@@ -30,6 +30,7 @@ import {
   type CompetitorConfig,
   type CompetitorMatch,
 } from "./competitors";
+import { fetchProductDetail } from "./psn-product";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>) => Promise<void>;
 
@@ -409,6 +410,43 @@ route("GET", "/debug/product-types", async (_req, res) => {
     const cfg = store.getPsn();
     const report = await inspectProductTypes(cfg);
     sendJson(res, 200, report);
+  } catch (e) {
+    if (e instanceof PsnApiError) {
+      return sendJson(res, 502, {
+        error: "psn_api_error",
+        message: (e as Error).message,
+      });
+    }
+    sendJson(res, 500, { error: "internal", message: (e as Error).message });
+  }
+});
+
+// GET /games/:id/detail — cached product detail (imagery, description…).
+// Returns 204 No Content if we haven't fetched it yet; the client should
+// then POST /games/:id/detail/refresh to trigger the scrape.
+route("GET", "/games/:id/detail", async (_req, res, params) => {
+  const detail = store.getProductDetail(params.id);
+  if (!detail) {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+  sendJson(res, 200, detail);
+});
+
+// POST /games/:id/detail/refresh — scrape the product page and cache it.
+route("POST", "/games/:id/detail/refresh", async (_req, res, params) => {
+  const game = store.getGame(params.id);
+  if (!game) return sendJson(res, 404, { error: "not_found" });
+  try {
+    const cfg = store.getPsn();
+    const detail = await fetchProductDetail(
+      game.id,
+      game.storeUrl || "",
+      cfg.region
+    );
+    store.setProductDetail(game.id, detail);
+    sendJson(res, 200, detail);
   } catch (e) {
     if (e instanceof PsnApiError) {
       return sendJson(res, 502, {

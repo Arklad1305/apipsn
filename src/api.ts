@@ -6,6 +6,7 @@ import type {
   Filters,
   GameOut,
   PricingSettings,
+  ProductDetail,
   PsnConfig,
   RefreshSummary,
   SettingsResponse,
@@ -94,6 +95,21 @@ export function putCompetitors(
 
 export function refreshCompetitors(): Promise<CompetitorRefreshResult> {
   return req<CompetitorRefreshResult>(`/competitors/refresh`, { method: "POST" });
+}
+
+/** Returns null when the detail has not been cached yet. */
+export async function getProductDetail(id: string): Promise<ProductDetail | null> {
+  const r = await fetch(`${API}/games/${encodeURIComponent(id)}/detail`);
+  if (r.status === 204) return null;
+  if (!r.ok) throw new Error(r.statusText);
+  return (await r.json()) as ProductDetail;
+}
+
+export function refreshProductDetail(id: string): Promise<ProductDetail> {
+  return req<ProductDetail>(
+    `/games/${encodeURIComponent(id)}/detail/refresh`,
+    { method: "POST" }
+  );
 }
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;

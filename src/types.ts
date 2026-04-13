@@ -91,6 +91,34 @@ export interface ApiError {
   hint?: string;
 }
 
+export interface ProductMedia {
+  heroUrl: string | null;
+  logoUrl: string | null;
+  backgroundUrl: string | null;
+  coverUrl: string | null;
+  screenshots: string[];
+  videos: Array<{ url: string; posterUrl: string | null; mimeType: string | null }>;
+}
+
+export interface ProductDetail {
+  id: string;
+  name: string;
+  description: string;
+  shortDescription: string | null;
+  publisher: string | null;
+  developer: string | null;
+  releaseDate: string | null;
+  genres: string[];
+  voiceLanguages: string[];
+  subtitleLanguages: string[];
+  ageRating: string | null;
+  fileSize: string | null;
+  platforms: string;
+  media: ProductMedia;
+  storeUrl: string;
+  fetchedAt: string;
+}
+
 export interface Filters {
   search: string;
   minDiscount: number;

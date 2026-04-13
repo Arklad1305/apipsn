@@ -7,6 +7,7 @@ import { animatePopIn, animateRowsIn } from "../anim";
 interface Props {
   games: GameOut[];
   onGameUpdated: (g: GameOut) => void;
+  onOpenDetail: (g: GameOut) => void;
 }
 
 const fmtCLP = (n: number | null) =>
@@ -18,7 +19,7 @@ interface OpenPopover {
   anchor: { top: number; left: number; right: number; bottom: number };
 }
 
-export function GamesTable({ games, onGameUpdated }: Props) {
+export function GamesTable({ games, onGameUpdated, onOpenDetail }: Props) {
   const [open, setOpen] = useState<OpenPopover | null>(null);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   const prevKeyRef = useRef<string>("");
@@ -71,6 +72,7 @@ export function GamesTable({ games, onGameUpdated }: Props) {
               <th>Fin</th>
               <th>Sel</th>
               <th>Pub</th>
+              <th></th>
             </tr>
           </thead>
           <tbody ref={tbodyRef}>
@@ -149,6 +151,15 @@ export function GamesTable({ games, onGameUpdated }: Props) {
                       checked={g.published}
                       onChange={(e) => toggle(g, "published", e.target.checked)}
                     />
+                  </td>
+                  <td>
+                    <button
+                      className="link detail-btn"
+                      onClick={() => onOpenDetail(g)}
+                      title="Ver ficha"
+                    >
+                      Ficha →
+                    </button>
                   </td>
                 </tr>
               );

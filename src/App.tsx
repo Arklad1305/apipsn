@@ -20,6 +20,7 @@ import { Toolbar } from "./components/Toolbar";
 import { FiltersBar } from "./components/FiltersBar";
 import { GamesTable } from "./components/GamesTable";
 import { Pagination } from "./components/Pagination";
+import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 
 const PAGE_SIZE = 30;
@@ -41,6 +42,7 @@ export function App() {
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [detailGame, setDetailGame] = useState<GameOut | null>(null);
   const [page, setPage] = useState(1);
   const statusRef = useRef<HTMLDivElement>(null);
 
@@ -152,8 +154,10 @@ export function App() {
     reload();
   };
 
-  const updateGameLocal = (g: GameOut) =>
+  const updateGameLocal = (g: GameOut) => {
     setGames((prev) => prev.map((x) => (x.id === g.id ? g : x)));
+    setDetailGame((prev) => (prev && prev.id === g.id ? g : prev));
+  };
 
   return (
     <div className="app">
@@ -184,7 +188,12 @@ export function App() {
         </div>
       )}
 
-      {showSettings && settings ? (
+      {detailGame ? (
+        <ProductDetailPanel
+          game={detailGame}
+          onClose={() => setDetailGame(null)}
+        />
+      ) : showSettings && settings ? (
         <SettingsPanel
           initial={settings}
           onSaved={onSavedSettings}
@@ -208,7 +217,11 @@ export function App() {
             </div>
           ) : (
             <>
-              <GamesTable games={pageGames} onGameUpdated={updateGameLocal} />
+              <GamesTable
+              games={pageGames}
+              onGameUpdated={updateGameLocal}
+              onOpenDetail={setDetailGame}
+            />
               <Pagination
                 page={safePage}
                 totalPages={totalPages}

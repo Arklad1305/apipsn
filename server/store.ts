@@ -9,6 +9,7 @@ import type {
   CompetitorMatch,
   CompetitorProduct,
 } from "./competitors";
+import type { ProductDetail } from "./psn-product";
 
 export interface Game {
   id: string;
@@ -55,6 +56,7 @@ interface DbShape {
   competitorProducts: Record<string, CompetitorProduct[]>;
   competitorMatches: Record<string, CompetitorMatch[]>;
   competitorRefreshedAt: Record<string, string>;
+  productDetails: Record<string, ProductDetail>;
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -105,6 +107,7 @@ function load(): DbShape {
       competitorProducts: parsed.competitorProducts ?? {},
       competitorMatches: parsed.competitorMatches ?? {},
       competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
+      productDetails: parsed.productDetails ?? {},
     };
   } catch {
     return {
@@ -115,6 +118,7 @@ function load(): DbShape {
       competitorProducts: {},
       competitorMatches: {},
       competitorRefreshedAt: {},
+      productDetails: {},
     };
   }
 }
@@ -213,6 +217,13 @@ export const store = {
   },
   getCompetitorMatches(gameId: string): CompetitorMatch[] {
     return db.competitorMatches[gameId] ?? [];
+  },
+  getProductDetail(id: string): ProductDetail | undefined {
+    return db.productDetails[id];
+  },
+  setProductDetail(id: string, detail: ProductDetail): void {
+    db.productDetails[id] = detail;
+    scheduleSave();
   },
   flush(): void {
     if (saveTimer) clearTimeout(saveTimer);
