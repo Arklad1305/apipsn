@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { patchGame } from "../api";
 import type { GameOut } from "../types";
+import { animatePopIn, animateRowsIn } from "../anim";
 
 interface Props {
   games: GameOut[];
@@ -19,6 +20,18 @@ interface OpenPopover {
 
 export function GamesTable({ games, onGameUpdated }: Props) {
   const [open, setOpen] = useState<OpenPopover | null>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const prevKeyRef = useRef<string>("");
+
+  useLayoutEffect(() => {
+    if (!tbodyRef.current) return;
+    // Re-animate when the set of games changes (filter/sort/reload).
+    const key = games.map((g) => g.id).join("|");
+    if (key === prevKeyRef.current) return;
+    prevKeyRef.current = key;
+    const rows = Array.from(tbodyRef.current.querySelectorAll("tr"));
+    animateRowsIn(rows);
+  }, [games]);
 
   const toggle = async (
     g: GameOut,
@@ -60,7 +73,7 @@ export function GamesTable({ games, onGameUpdated }: Props) {
               <th>Pub</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {games.map((g) => {
               const marketClass = marketColor(g);
               return (
@@ -172,6 +185,10 @@ interface PopoverProps {
 
 function MarketPopover({ game, anchor, onClose }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (ref.current) animatePopIn(ref.current);
+  }, []);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {

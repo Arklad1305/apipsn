@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { animateSlideIn } from "./anim";
 import {
   clearAll,
   exportCsvUrl,
@@ -37,6 +38,11 @@ export function App() {
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (statusMsg && statusRef.current) animateSlideIn(statusRef.current);
+  }, [statusMsg, statusKind]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -152,7 +158,7 @@ export function App() {
       </header>
 
       {statusMsg && (
-        <div className={`status ${statusKind}`}>
+        <div ref={statusRef} className={`status ${statusKind}`}>
           {statusMsg}
           <button className="link" onClick={() => setStatusMsg("")}>
             ✕
