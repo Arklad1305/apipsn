@@ -4,6 +4,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type {
+  CompetitorConfig,
+  CompetitorMatch,
+  CompetitorProduct,
+} from "./competitors";
 
 export interface Game {
   id: string;
@@ -43,6 +48,10 @@ interface DbShape {
   games: Record<string, Game>;
   settings: PricingSettings;
   psn: PsnConfig;
+  competitors: CompetitorConfig[];
+  competitorProducts: Record<string, CompetitorProduct[]>;
+  competitorMatches: Record<string, CompetitorMatch[]>;
+  competitorRefreshedAt: Record<string, string>;
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -53,6 +62,13 @@ const DEFAULT_SETTINGS: PricingSettings = {
   secundariaMult: 1.1,
   roundTo: 500,
 };
+
+const DEFAULT_COMPETITORS: CompetitorConfig[] = [
+  { key: "cjm", label: "CJM Digitales", domain: "cjmdigitales.cl", type: "auto", enabled: true },
+  { key: "juegosdigitaleschile", label: "Juegos Digitales Chile", domain: "juegosdigitaleschile.com", type: "woocommerce", enabled: true },
+  { key: "mj", label: "MJ Digitales", domain: "mjdigitales.cl", type: "shopify", enabled: true },
+  { key: "infinity", label: "Infinity Games Chile", domain: "infinitygameschile.cl", type: "auto", enabled: true },
+];
 
 const DEFAULT_PSN: PsnConfig = {
   region: "en-US",
@@ -81,9 +97,21 @@ function load(): DbShape {
       games: parsed.games ?? {},
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
       psn: { ...DEFAULT_PSN, ...(parsed.psn ?? {}) },
+      competitors: parsed.competitors ?? [...DEFAULT_COMPETITORS],
+      competitorProducts: parsed.competitorProducts ?? {},
+      competitorMatches: parsed.competitorMatches ?? {},
+      competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
     };
   } catch {
-    return { games: {}, settings: { ...DEFAULT_SETTINGS }, psn: { ...DEFAULT_PSN } };
+    return {
+      games: {},
+      settings: { ...DEFAULT_SETTINGS },
+      psn: { ...DEFAULT_PSN },
+      competitors: [...DEFAULT_COMPETITORS],
+      competitorProducts: {},
+      competitorMatches: {},
+      competitorRefreshedAt: {},
+    };
   }
 }
 
@@ -147,6 +175,40 @@ export const store = {
     db.psn = { ...db.psn, ...patch };
     scheduleSave();
     return { ...db.psn };
+  },
+  getCompetitors(): CompetitorConfig[] {
+    return db.competitors.map((c) => ({ ...c }));
+  },
+  setCompetitors(list: CompetitorConfig[]): CompetitorConfig[] {
+    db.competitors = list.map((c) => ({ ...c }));
+    scheduleSave();
+    return db.competitors.map((c) => ({ ...c }));
+  },
+  setCompetitorProducts(key: string, products: CompetitorProduct[], refreshedAt: string): void {
+    db.competitorProducts[key] = products;
+    db.competitorRefreshedAt[key] = refreshedAt;
+    scheduleSave();
+  },
+  getAllCompetitorProducts(enabledOnly = true): CompetitorProduct[] {
+    const enabled = new Set(
+      db.competitors.filter((c) => !enabledOnly || c.enabled).map((c) => c.key)
+    );
+    const out: CompetitorProduct[] = [];
+    for (const [key, list] of Object.entries(db.competitorProducts)) {
+      if (!enabled.has(key)) continue;
+      for (const p of list) out.push(p);
+    }
+    return out;
+  },
+  getCompetitorRefreshedAt(): Record<string, string> {
+    return { ...db.competitorRefreshedAt };
+  },
+  setCompetitorMatches(matches: Record<string, CompetitorMatch[]>): void {
+    db.competitorMatches = matches;
+    scheduleSave();
+  },
+  getCompetitorMatches(gameId: string): CompetitorMatch[] {
+    return db.competitorMatches[gameId] ?? [];
   },
   flush(): void {
     if (saveTimer) clearTimeout(saveTimer);

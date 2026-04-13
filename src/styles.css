@@ -362,3 +362,127 @@ td.name .notes {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* Competitors list inside settings */
+.competitors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.competitor-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 1.4fr 140px 160px 28px;
+  gap: 8px;
+  align-items: center;
+}
+
+.competitor-row.competitor-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.competitor-row input,
+.competitor-row select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 5px 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: "Menlo", "Consolas", monospace;
+}
+
+.competitors > button {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* Market column */
+td.market {
+  font-variant-numeric: tabular-nums;
+  position: relative;
+}
+
+td.market.market-good {
+  background: rgba(63, 185, 80, 0.08);
+}
+
+td.market.market-bad {
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.market-btn {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.market-btn:hover {
+  text-decoration: underline;
+}
+
+.market-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.market-popover {
+  position: absolute;
+  z-index: 10;
+  right: 20px;
+  margin-top: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  min-width: 340px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.market-popover-header {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+}
+
+.market-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.market-row:hover {
+  background: var(--panel);
+}
+
+.market-store {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+
+.market-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-price {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}

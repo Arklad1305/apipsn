@@ -1,3 +1,12 @@
+export interface CompetitorMatchOut {
+  storeKey: string;
+  title: string;
+  url: string;
+  priceClp: number;
+  available: boolean;
+  score: number;
+}
+
 export interface GameOut {
   id: string;
   name: string;
@@ -16,6 +25,34 @@ export interface GameOut {
   primaria1: number | null;
   primaria2: number | null;
   secundaria: number | null;
+  marketMin: number | null;
+  marketCount: number;
+  marketMatches: CompetitorMatchOut[];
+}
+
+export type CompetitorType = "shopify" | "woocommerce" | "auto";
+
+export interface CompetitorConfig {
+  key: string;
+  label: string;
+  domain: string;
+  type: CompetitorType;
+  enabled: boolean;
+}
+
+export interface CompetitorStatus extends CompetitorConfig {
+  refreshedAt: string | null;
+  productCount: number;
+}
+
+export interface CompetitorRefreshResult {
+  refreshedAt: string;
+  results: Array<{
+    key: string;
+    label: string;
+    count: number;
+    error?: string;
+  }>;
 }
 
 export interface PricingSettings {
@@ -56,5 +93,6 @@ export interface Filters {
   minDiscount: number;
   onlySelected: boolean;
   hidePublished: boolean;
-  sort: "discount" | "price" | "name";
+  onlyWithMarket: boolean;
+  sort: "discount" | "price" | "name" | "market";
 }

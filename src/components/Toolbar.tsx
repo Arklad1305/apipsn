@@ -1,5 +1,6 @@
 interface Props {
   onRefresh: () => void;
+  onRefreshCompetitors: () => void;
   onSeed: () => void;
   onClear: () => void;
   onToggleSettings: () => void;
@@ -8,6 +9,7 @@ interface Props {
 
 export function Toolbar({
   onRefresh,
+  onRefreshCompetitors,
   onSeed,
   onClear,
   onToggleSettings,
@@ -17,6 +19,9 @@ export function Toolbar({
     <div className="toolbar">
       <button className="primary" onClick={onRefresh}>
         Actualizar ofertas
+      </button>
+      <button onClick={onRefreshCompetitors} title="Scrapea tiendas de la competencia y calcula matches">
+        Actualizar competencia
       </button>
       <button onClick={onSeed} title="Carga datos de demo para explorar el panel">
         Seed demo

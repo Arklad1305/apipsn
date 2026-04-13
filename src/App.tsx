@@ -5,6 +5,7 @@ import {
   fetchGames,
   getSettings,
   refresh,
+  refreshCompetitors,
   seedDemo,
 } from "./api";
 import type {
@@ -24,6 +25,7 @@ const DEFAULT_FILTERS: Filters = {
   minDiscount: 0,
   onlySelected: false,
   hidePublished: false,
+  onlyWithMarket: false,
   sort: "discount",
 };
 
@@ -74,6 +76,26 @@ export function App() {
     }
   };
 
+  const onRefreshCompetitors = async () => {
+    setStatusKind("info");
+    setStatusMsg("Scrapeando competencia…");
+    try {
+      const r = await refreshCompetitors();
+      const ok = r.results.filter((x) => !x.error);
+      const fail = r.results.filter((x) => x.error);
+      const okSummary = ok.map((x) => `${x.label}: ${x.count}`).join(", ");
+      const failSummary = fail.map((x) => `${x.label} ✗ ${x.error}`).join(" · ");
+      setStatusKind(fail.length ? "err" : "ok");
+      setStatusMsg(
+        `Competencia: ${okSummary}${failSummary ? " — " + failSummary : ""}`
+      );
+      await reload();
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    }
+  };
+
   const onSeed = async () => {
     setStatusKind("info");
     setStatusMsg("Cargando datos demo…");
@@ -121,6 +143,7 @@ export function App() {
         </div>
         <Toolbar
           onRefresh={onRefresh}
+          onRefreshCompetitors={onRefreshCompetitors}
           onSeed={onSeed}
           onClear={onClear}
           onToggleSettings={() => setShowSettings((s) => !s)}

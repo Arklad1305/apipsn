@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { putSettings } from "../api";
+import { useEffect, useState } from "react";
+import { getCompetitors, putCompetitors, putSettings } from "../api";
 import type {
+  CompetitorStatus,
+  CompetitorType,
   PricingSettings,
   PsnConfig,
   SettingsResponse,
@@ -15,17 +17,55 @@ interface Props {
 export function SettingsPanel({ initial, onSaved, onClose }: Props) {
   const [pricing, setPricing] = useState<PricingSettings>(initial.pricing);
   const [psn, setPsn] = useState<PsnConfig>(initial.psn);
+  const [competitors, setCompetitors] = useState<CompetitorStatus[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getCompetitors()
+      .then((r) => setCompetitors(r.competitors))
+      .catch(() => {});
+  }, []);
 
   const save = async () => {
     setSaving(true);
     try {
       const r = await putSettings({ pricing, psn });
+      await putCompetitors(
+        competitors.map(({ key, label, domain, type, enabled }) => ({
+          key,
+          label,
+          domain,
+          type,
+          enabled,
+        }))
+      );
       onSaved(r);
     } finally {
       setSaving(false);
     }
   };
+
+  const updateCompetitor = (idx: number, patch: Partial<CompetitorStatus>) =>
+    setCompetitors((list) =>
+      list.map((c, i) => (i === idx ? { ...c, ...patch } : c))
+    );
+
+  const addCompetitor = () =>
+    setCompetitors((list) => [
+      ...list,
+      {
+        key: `store${list.length + 1}`,
+        label: "Nueva tienda",
+        domain: "",
+        type: "auto" as CompetitorType,
+        enabled: true,
+        refreshedAt: null,
+        productCount: 0,
+      },
+    ]);
+
+  const removeCompetitor = (idx: number) =>
+    setCompetitors((list) => list.filter((_, i) => i !== idx));
 
   const numField = <K extends keyof PricingSettings>(k: K, label: string, step = 0.01) => (
     <label key={k}>
@@ -95,21 +135,66 @@ export function SettingsPanel({ initial, onSaved, onClose }: Props) {
               }
             />
           </label>
-          <label className="wide">
-            SHA256 persisted query
-            <input
-              value={psn.categoryGridHash}
-              onChange={(e) =>
-                setPsn((p) => ({ ...p, categoryGridHash: e.target.value }))
-              }
-            />
-          </label>
         </div>
         <p className="help">
-          Para obtener el hash: abrí la página de ofertas en <code>store.playstation.com/en-us</code>,
-          DevTools → Network → filtrá <code>graphql</code>, copiá{" "}
-          <code>extensions.persistedQuery.sha256Hash</code> de una request a{" "}
-          <code>operationName=categoryGridRetrieve</code>.
+          El scraper parsea el HTML de{" "}
+          <code>store.playstation.com/&lt;region&gt;/category/&lt;id&gt;/&lt;page&gt;</code>.
+          No hace falta mantener hashes ni tokens.
+        </p>
+      </div>
+
+      <div className="group">
+        <h3>Competidores</h3>
+        <div className="competitors">
+          <div className="competitor-row competitor-head">
+            <span></span>
+            <span>Nombre</span>
+            <span>Dominio</span>
+            <span>Tipo</span>
+            <span>Productos</span>
+            <span></span>
+          </div>
+          {competitors.map((c, i) => (
+            <div className="competitor-row" key={c.key + i}>
+              <input
+                type="checkbox"
+                checked={c.enabled}
+                onChange={(e) => updateCompetitor(i, { enabled: e.target.checked })}
+              />
+              <input
+                value={c.label}
+                onChange={(e) => updateCompetitor(i, { label: e.target.value })}
+              />
+              <input
+                value={c.domain}
+                placeholder="ejemplo.cl"
+                onChange={(e) => updateCompetitor(i, { domain: e.target.value })}
+              />
+              <select
+                value={c.type}
+                onChange={(e) =>
+                  updateCompetitor(i, { type: e.target.value as CompetitorType })
+                }
+              >
+                <option value="auto">auto-detectar</option>
+                <option value="shopify">Shopify</option>
+                <option value="woocommerce">WooCommerce</option>
+              </select>
+              <span className="muted">
+                {c.productCount}
+                {c.refreshedAt ? ` · ${c.refreshedAt.slice(0, 10)}` : " · nunca"}
+              </span>
+              <button className="link danger" onClick={() => removeCompetitor(i)}>
+                ✕
+              </button>
+            </div>
+          ))}
+          <button onClick={addCompetitor}>+ Agregar tienda</button>
+        </div>
+        <p className="help">
+          Shopify expone <code>/products.json</code>; WooCommerce expone{" "}
+          <code>/wp-json/wc/store/v1/products</code>. Si no sabés qué usa, dejalo en{" "}
+          <em>auto</em>. Luego clic en <strong>Actualizar competencia</strong>.
         </p>
       </div>
 

@@ -48,6 +48,16 @@ export function FiltersBar({ filters, setFilters, count }: Props) {
         />
         Ocultar publicados
       </label>
+      <label className="chk">
+        <input
+          type="checkbox"
+          checked={filters.onlyWithMarket}
+          onChange={(e) =>
+            setFilters((f) => ({ ...f, onlyWithMarket: e.target.checked }))
+          }
+        />
+        Solo con competencia
+      </label>
       <label>
         Orden
         <select
@@ -59,6 +69,7 @@ export function FiltersBar({ filters, setFilters, count }: Props) {
           <option value="discount">Mayor descuento</option>
           <option value="price">Menor precio</option>
           <option value="name">Nombre</option>
+          <option value="market">Menor precio mercado</option>
         </select>
       </label>
       <span className="count">{count} juegos</span>

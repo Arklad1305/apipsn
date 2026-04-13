@@ -21,6 +21,13 @@ import {
   PsnApiError,
 } from "./psn";
 import { demoGames } from "./demo-data";
+import {
+  fetchCompetitor,
+  matchGames,
+  CompetitorFetchError,
+  type CompetitorConfig,
+  type CompetitorMatch,
+} from "./competitors";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>) => Promise<void>;
 
@@ -66,6 +73,10 @@ async function readBody(req: IncomingMessage): Promise<any> {
 
 function toGameOut(g: Game, cfgPricing = store.getSettings()) {
   const sale = computeSalePrices(g.priceDiscountedCents, cfgPricing);
+  const matches = store.getCompetitorMatches(g.id);
+  const marketMin = matches.length
+    ? Math.min(...matches.map((m) => m.priceClp))
+    : null;
   return {
     id: g.id,
     name: g.name,
@@ -86,6 +97,9 @@ function toGameOut(g: Game, cfgPricing = store.getSettings()) {
     primaria1: sale?.primaria1 ?? null,
     primaria2: sale?.primaria2 ?? null,
     secundaria: sale?.secundaria ?? null,
+    marketMin,
+    marketCount: matches.length,
+    marketMatches: matches,
   };
 }
 
@@ -96,6 +110,7 @@ route("GET", "/games", async (req, res) => {
   const minDiscount = parseInt(url.searchParams.get("min_discount") || "0", 10) || 0;
   const onlySelected = url.searchParams.get("only_selected") === "true";
   const hidePublished = url.searchParams.get("hide_published") === "true";
+  const onlyWithMarket = url.searchParams.get("only_with_market") === "true";
   const includeInactive = url.searchParams.get("include_inactive") === "true";
   const sort = url.searchParams.get("sort") || "discount";
 
@@ -104,10 +119,21 @@ route("GET", "/games", async (req, res) => {
   if (minDiscount > 0) games = games.filter((g) => g.discountPercent >= minDiscount);
   if (onlySelected) games = games.filter((g) => g.selected);
   if (hidePublished) games = games.filter((g) => !g.published);
+  if (onlyWithMarket)
+    games = games.filter((g) => store.getCompetitorMatches(g.id).length > 0);
   if (search) games = games.filter((g) => g.name.toLowerCase().includes(search));
 
   if (sort === "price") games.sort((a, b) => (a.priceDiscountedCents ?? 0) - (b.priceDiscountedCents ?? 0));
   else if (sort === "name") games.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sort === "market") {
+    games.sort((a, b) => {
+      const am = store.getCompetitorMatches(a.id);
+      const bm = store.getCompetitorMatches(b.id);
+      const ap = am.length ? Math.min(...am.map((m) => m.priceClp)) : Infinity;
+      const bp = bm.length ? Math.min(...bm.map((m) => m.priceClp)) : Infinity;
+      return ap - bp;
+    });
+  }
   else games.sort((a, b) => b.discountPercent - a.discountPercent);
 
   const cfg = store.getSettings();
@@ -162,6 +188,8 @@ route("POST", "/refresh", async (_req, res) => {
       }
     }
     const disappeared = store.markInactiveIfMissing(seen);
+    // Recompute competitor matches against the refreshed catalogue.
+    recomputeMatches();
     sendJson(res, 200, {
       new: newCount,
       updated,
@@ -291,6 +319,80 @@ route("POST", "/mock/clear", async (_req, res) => {
   // Also wipe entries fully by re-writing the file:
   for (const g of games) store.patchGame(g.id, { active: false });
   sendJson(res, 200, { cleared: games.length });
+});
+
+function recomputeMatches(): void {
+  const games = store.listGames().filter((g) => g.active);
+  const products = store.getAllCompetitorProducts();
+  const matches = matchGames(games, products);
+  store.setCompetitorMatches(matches);
+}
+
+// GET /competitors — list stores + last refresh + match stats
+route("GET", "/competitors", async (_req, res) => {
+  const competitors = store.getCompetitors();
+  const refreshedAt = store.getCompetitorRefreshedAt();
+  sendJson(res, 200, {
+    competitors: competitors.map((c) => ({
+      ...c,
+      refreshedAt: refreshedAt[c.key] ?? null,
+      productCount: store
+        .getAllCompetitorProducts(false)
+        .filter((p) => p.storeKey === c.key).length,
+    })),
+  });
+});
+
+// PUT /competitors — replace the full list (used from Ajustes)
+route("PUT", "/competitors", async (req, res) => {
+  const body = (await readBody(req)) as { competitors?: CompetitorConfig[] };
+  if (!Array.isArray(body.competitors)) {
+    return sendJson(res, 400, { error: "bad_request", message: "competitors[] required" });
+  }
+  const clean: CompetitorConfig[] = body.competitors
+    .filter((c) => c && typeof c.key === "string" && typeof c.domain === "string")
+    .map((c) => ({
+      key: c.key.trim(),
+      label: (c.label || c.key).trim(),
+      domain: c.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim(),
+      type: (["shopify", "woocommerce", "auto"].includes(c.type) ? c.type : "auto"),
+      enabled: c.enabled !== false,
+    }));
+  store.setCompetitors(clean);
+  recomputeMatches();
+  sendJson(res, 200, { competitors: store.getCompetitors() });
+});
+
+// POST /competitors/refresh — scrape all enabled stores and recompute matches
+route("POST", "/competitors/refresh", async (_req, res) => {
+  const competitors = store.getCompetitors().filter((c) => c.enabled);
+  const now = new Date().toISOString();
+  const results: Array<{ key: string; label: string; count: number; error?: string }> = [];
+
+  await Promise.all(
+    competitors.map(async (c) => {
+      try {
+        const products = await fetchCompetitor(c);
+        store.setCompetitorProducts(c.key, products, now);
+        results.push({ key: c.key, label: c.label, count: products.length });
+      } catch (e) {
+        const msg =
+          e instanceof CompetitorFetchError
+            ? e.message
+            : (e as Error).message || "error";
+        results.push({ key: c.key, label: c.label, count: 0, error: msg });
+      }
+    })
+  );
+
+  recomputeMatches();
+  sendJson(res, 200, { refreshedAt: now, results });
+});
+
+// GET /games/:id/matches — all competitor matches for a game (for popovers)
+route("GET", "/games/:id/matches", async (_req, res, params) => {
+  const matches: CompetitorMatch[] = store.getCompetitorMatches(params.id);
+  sendJson(res, 200, { matches });
 });
 
 export async function handleRequest(

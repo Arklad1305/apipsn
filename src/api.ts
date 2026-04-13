@@ -1,5 +1,8 @@
 import type {
   ApiError,
+  CompetitorConfig,
+  CompetitorRefreshResult,
+  CompetitorStatus,
   Filters,
   GameOut,
   PricingSettings,
@@ -36,6 +39,7 @@ export function fetchGames(f: Filters): Promise<GameOut[]> {
   if (f.minDiscount) q.set("min_discount", String(f.minDiscount));
   if (f.onlySelected) q.set("only_selected", "true");
   if (f.hidePublished) q.set("hide_published", "true");
+  if (f.onlyWithMarket) q.set("only_with_market", "true");
   q.set("sort", f.sort);
   return req<GameOut[]>(`/games?${q.toString()}`);
 }
@@ -73,6 +77,23 @@ export function seedDemo(): Promise<{ seeded: number }> {
 
 export function clearAll(): Promise<{ cleared: number }> {
   return req<{ cleared: number }>(`/mock/clear`, { method: "POST" });
+}
+
+export function getCompetitors(): Promise<{ competitors: CompetitorStatus[] }> {
+  return req<{ competitors: CompetitorStatus[] }>(`/competitors`);
+}
+
+export function putCompetitors(
+  competitors: CompetitorConfig[]
+): Promise<{ competitors: CompetitorStatus[] }> {
+  return req<{ competitors: CompetitorStatus[] }>(`/competitors`, {
+    method: "PUT",
+    body: JSON.stringify({ competitors }),
+  });
+}
+
+export function refreshCompetitors(): Promise<CompetitorRefreshResult> {
+  return req<CompetitorRefreshResult>(`/competitors/refresh`, { method: "POST" });
 }
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
