@@ -1,24 +1,25 @@
 /**
- * PSN Store GraphQL client using the persisted-query pattern.
+ * PSN Store scraper.
  *
- *   GET https://web.np.playstation.com/api/graphql/v1/op
- *       ?operationName=categoryGridRetrieve
- *       &variables=<json>
- *       &extensions={"persistedQuery":{"version":1,"sha256Hash":"<hash>"}}
+ * PSN now server-side-renders the category pages (Next.js). The product grid
+ * is embedded as JSON inside a `<script id="__NEXT_DATA__">` tag — we fetch
+ * the HTML and parse that blob instead of hitting the GraphQL endpoint with
+ * persisted queries. No sha256 hashes to keep up to date.
  *
- * When the SHA256 hash is stale PSN returns PERSISTED_QUERY_NOT_FOUND — the
- * caller must fetch the new hash from DevTools and update config.
+ *   GET https://store.playstation.com/<region>/category/<categoryId>/<page>
+ *
+ * We paginate by walking /1, /2, /3 until a page returns no new products.
  */
 import type { Game, PsnConfig } from "./store";
 
-const PSN_GRAPHQL_URL = "https://web.np.playstation.com/api/graphql/v1/op";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
+/** Kept for API compatibility with the old client; no longer thrown. */
 export class PersistedQueryNotFoundError extends Error {
   constructor() {
-    super("PSN persisted query hash is stale. Update the hash in Ajustes.");
+    super("PSN persisted query hash is stale.");
   }
 }
 
@@ -44,7 +45,7 @@ interface RawProduct {
   name?: string;
   title?: string;
   platforms?: string[] | string;
-  media?: Array<{ role?: string; url?: string }> | null;
+  media?: Array<{ role?: string; url?: string; type?: string }> | null;
   webctas?: Array<{
     price?: {
       basePriceValue?: string;
@@ -55,6 +56,14 @@ interface RawProduct {
       endTime?: string;
     };
   }> | null;
+  price?: {
+    basePriceValue?: string;
+    basePrice?: string;
+    discountedValue?: string;
+    discountedPrice?: string;
+    discountText?: string;
+    endTime?: string;
+  };
 }
 
 export function normalizeProduct(raw: RawProduct, now: string): Game | null {
@@ -62,14 +71,15 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
   if (!id) return null;
 
   const name = raw.name || raw.title || "";
+  if (!name) return null;
 
   // Image: prefer hero/master/boxart if available.
   let imageUrl: string | null = null;
   const media = raw.media || [];
   for (const m of media) {
+    const role = String(m?.role || "").toUpperCase();
     if (
-      m?.role &&
-      ["MASTER", "PREVIEW_GAME_ART", "BOXART", "GAMEHUB_COVER_ART"].includes(m.role)
+      ["MASTER", "PREVIEW_GAME_ART", "BOXART", "GAMEHUB_COVER_ART"].includes(role)
     ) {
       imageUrl = m.url ?? null;
       if (imageUrl) break;
@@ -81,9 +91,11 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
     ? raw.platforms.join(",")
     : raw.platforms ?? "";
 
-  const price = raw.webctas?.[0]?.price ?? {};
+  const price = raw.webctas?.[0]?.price ?? raw.price ?? {};
   const priceOriginalCents = priceToCents(price.basePriceValue ?? price.basePrice);
-  let priceDiscountedCents = priceToCents(price.discountedValue ?? price.discountedPrice);
+  let priceDiscountedCents = priceToCents(
+    price.discountedValue ?? price.discountedPrice
+  );
   if (priceDiscountedCents == null) priceDiscountedCents = priceOriginalCents;
 
   let discountPercent = 0;
@@ -122,72 +134,118 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
   };
 }
 
-async function graphqlRequest(
-  cfg: PsnConfig,
-  operationName: string,
-  variables: unknown
-): Promise<any> {
-  const params = new URLSearchParams({
-    operationName,
-    variables: JSON.stringify(variables),
-    extensions: JSON.stringify({
-      persistedQuery: { version: 1, sha256Hash: cfg.categoryGridHash },
-    }),
-  });
-  const url = `${PSN_GRAPHQL_URL}?${params.toString()}`;
-
+async function fetchHtml(url: string, region: string): Promise<string> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const r = await fetch(url, {
         headers: {
-          accept: "application/json",
           "user-agent": UA,
-          "x-psn-store-locale-override": cfg.region,
+          accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "accept-language": region.toLowerCase().startsWith("es") ? "es" : "en-US",
+          "x-psn-store-locale-override": region,
         },
       });
+      if (r.status === 404) throw new PsnApiError(`Category not found (404): ${url}`);
+      if (r.status === 403)
+        throw new PsnApiError("PSN returned 403 (IP/Cloudflare block)");
       if (r.status >= 500) throw new Error(`PSN ${r.status}`);
-      if (r.status === 403) throw new PsnApiError("PSN returned 403 (IP/Cloudflare block)");
-      const data = (await r.json()) as any;
-      if (data?.errors?.length) {
-        const err = data.errors[0];
-        const code = String(err?.extensions?.code || "").toUpperCase();
-        if (code.includes("PERSISTED_QUERY_NOT_FOUND")) {
-          throw new PersistedQueryNotFoundError();
-        }
-        throw new PsnApiError(`PSN GraphQL error: ${JSON.stringify(err)}`);
-      }
-      return data?.data ?? {};
+      return await r.text();
     } catch (e) {
-      if (e instanceof PersistedQueryNotFoundError || e instanceof PsnApiError) throw e;
+      if (e instanceof PsnApiError) throw e;
       lastError = e;
       await new Promise((res) => setTimeout(res, 500 * 2 ** attempt));
     }
   }
   throw new PsnApiError(
-    `PSN request failed after retries: ${(lastError as Error)?.message || lastError}`
+    `PSN HTML fetch failed after retries: ${(lastError as Error)?.message || lastError}`
   );
 }
 
+/** Extract the JSON payload from `<script id="__NEXT_DATA__">…</script>`. */
+function extractNextData(html: string): any | null {
+  const m = /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/.exec(
+    html
+  );
+  if (!m) return null;
+  try {
+    return JSON.parse(m[1]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recursively walk a JSON tree and collect anything that looks like a PSN
+ * product entry. Matches objects with an `id`/`productId` plus either a
+ * `name`/`title` and a `price`/`webctas`.
+ */
+function collectProducts(node: unknown, out: Map<string, RawProduct>): void {
+  if (!node) return;
+  if (Array.isArray(node)) {
+    for (const v of node) collectProducts(v, out);
+    return;
+  }
+  if (typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+
+  const id = (obj.id || obj.productId || obj.conceptId) as string | undefined;
+  const name = (obj.name || obj.title) as string | undefined;
+  const hasPrice =
+    (obj.price && typeof obj.price === "object") ||
+    (Array.isArray(obj.webctas) && obj.webctas.length > 0);
+  // Product IDs on PSN look like "UP9000-CUSA07408_00-REDEMPTION2000000"
+  // (contain a hyphen + underscore). Filter on that to avoid picking up
+  // arbitrary entities with an `id`.
+  if (
+    id &&
+    typeof id === "string" &&
+    /^[A-Z]{2}\d{4}-/.test(id) &&
+    name &&
+    hasPrice &&
+    !out.has(id)
+  ) {
+    out.set(id, obj as RawProduct);
+  }
+
+  for (const v of Object.values(obj)) collectProducts(v, out);
+}
+
+function buildCategoryUrl(cfg: PsnConfig, page: number): string {
+  // region like "en-US" → "en-us"
+  const regionPath = cfg.region.toLowerCase();
+  return `https://store.playstation.com/${regionPath}/category/${cfg.dealsCategoryId}/${page}`;
+}
+
 export async function* iterCategoryProducts(
-  cfg: PsnConfig,
-  pageSize = 100
+  cfg: PsnConfig
 ): AsyncGenerator<RawProduct> {
-  let offset = 0;
-  let total: number | null = null;
-  for (;;) {
-    const data = await graphqlRequest(cfg, "categoryGridRetrieve", {
-      id: cfg.dealsCategoryId,
-      pageArgs: { size: pageSize, offset },
-      sortBy: null,
-      filterBy: [],
-      facetOptions: [],
-    });
-    const grid = data?.categoryGridRetrieve ?? {};
-    const products: RawProduct[] = grid?.products ?? [];
-    if (total == null) total = Number(grid?.totalCount ?? 0);
-    for (const p of products) if (p) yield p;
-    offset += products.length;
-    if (!products.length || (total != null && offset >= total)) break;
+  const seen = new Set<string>();
+  const maxPages = 50; // hard stop so a bug can't loop forever
+
+  for (let page = 1; page <= maxPages; page++) {
+    const url = buildCategoryUrl(cfg, page);
+    const html = await fetchHtml(url, cfg.region);
+    const data = extractNextData(html);
+    if (!data) {
+      if (page === 1) {
+        throw new PsnApiError(
+          "Could not find __NEXT_DATA__ in PSN HTML — page layout may have changed."
+        );
+      }
+      break;
+    }
+    const found = new Map<string, RawProduct>();
+    collectProducts(data, found);
+
+    let newOnThisPage = 0;
+    for (const [id, p] of found) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      newOnThisPage++;
+      yield p;
+    }
+    if (newOnThisPage === 0) break; // pagination exhausted
   }
 }

@@ -59,8 +59,10 @@ const DEFAULT_PSN: PsnConfig = {
   // Placeholder IDs — the user configures the real ones from DevTools.
   // Panel > Ajustes expone ambos.
   dealsCategoryId: "3f772501-f6f8-49b7-abac-874a88ca4897",
+  // Unused by the HTML scraper. Kept for reference in case we ever add a
+  // GraphQL fallback. Current value captured from DevTools on 2026-04-13.
   categoryGridHash:
-    "4ce7d4ce7a2a43fdf1dc4a8d93aa0cb087897d19ff0a7d7df6e3c829e79ec176",
+    "257713466fc3264850aa473409a29088e3a4115e6e69e9fb3e061c8dd5b9f5c6",
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
