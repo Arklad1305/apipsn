@@ -16,6 +16,7 @@ import { store, type Game } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
   inspectProductTypes,
+  isFullGameProduct,
   iterCategoryProducts,
   normalizeProduct,
   PersistedQueryNotFoundError,
@@ -160,9 +161,16 @@ route("POST", "/refresh", async (_req, res) => {
     const seen = new Set<string>();
     let newCount = 0;
     let updated = 0;
+    let totalSeen = 0;
+    let filteredAddOns = 0;
     const nowIso = new Date().toISOString();
 
     for await (const raw of iterCategoryProducts(cfg)) {
+      totalSeen++;
+      if (!cfg.includeAddOns && !isFullGameProduct(raw)) {
+        filteredAddOns++;
+        continue;
+      }
       const normalized = normalizeProduct(raw, nowIso);
       if (!normalized) continue;
       seen.add(normalized.id);
@@ -195,7 +203,9 @@ route("POST", "/refresh", async (_req, res) => {
       new: newCount,
       updated,
       disappeared,
-      totalSeen: seen.size,
+      totalSeen,
+      kept: seen.size,
+      filteredAddOns,
     });
   } catch (e) {
     if (e instanceof PersistedQueryNotFoundError) {

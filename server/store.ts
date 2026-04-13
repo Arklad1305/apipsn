@@ -42,6 +42,9 @@ export interface PsnConfig {
   region: string;
   dealsCategoryId: string;
   categoryGridHash: string;
+  /** When false, filter out DLC, currency, avatars, themes, subscriptions.
+   *  Default false — we almost always want just the playable games. */
+  includeAddOns: boolean;
 }
 
 interface DbShape {
@@ -79,6 +82,7 @@ const DEFAULT_PSN: PsnConfig = {
   // GraphQL fallback. Current value captured from DevTools on 2026-04-13.
   categoryGridHash:
     "257713466fc3264850aa473409a29088e3a4115e6e69e9fb3e061c8dd5b9f5c6",
+  includeAddOns: false,
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -25,6 +25,31 @@ export class PersistedQueryNotFoundError extends Error {
 
 export class PsnApiError extends Error {}
 
+/** Enum values PSN uses for real games (not DLC / currency / themes /
+ *  avatars / subscriptions). `storeDisplayClassification` is the stable
+ *  non-localized field; we also accept the human strings as fallback.
+ *  Confirmed against live en-US catalog on 2026-04-13. */
+const GAME_ENUM = new Set<string>([
+  "FULL_GAME",
+  "GAME_BUNDLE",
+  "PREMIUM_EDITION",
+  "BUNDLE",
+]);
+
+const GAME_LABELS = new Set<string>([
+  "Full Game",
+  "Game Bundle",
+  "Premium Edition",
+  "Bundle",
+]);
+
+export function isFullGameProduct(raw: RawProduct): boolean {
+  const e = String(raw.storeDisplayClassification || "").toUpperCase();
+  if (e && GAME_ENUM.has(e)) return true;
+  const l = String(raw.localizedStoreDisplayClassification || "").trim();
+  return GAME_LABELS.has(l);
+}
+
 function priceToCents(v: unknown): number | null {
   if (v == null) return null;
   const s = String(v).trim();

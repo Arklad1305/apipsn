@@ -68,6 +68,7 @@ export interface PsnConfig {
   region: string;
   dealsCategoryId: string;
   categoryGridHash: string;
+  includeAddOns: boolean;
 }
 
 export interface SettingsResponse {
@@ -80,6 +81,8 @@ export interface RefreshSummary {
   updated: number;
   disappeared: number;
   totalSeen: number;
+  kept: number;
+  filteredAddOns: number;
 }
 
 export interface ApiError {

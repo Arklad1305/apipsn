@@ -1,7 +1,6 @@
 interface Props {
   onRefresh: () => void;
   onRefreshCompetitors: () => void;
-  onInspectTypes: () => void;
   onSeed: () => void;
   onClear: () => void;
   onToggleSettings: () => void;
@@ -11,7 +10,6 @@ interface Props {
 export function Toolbar({
   onRefresh,
   onRefreshCompetitors,
-  onInspectTypes,
   onSeed,
   onClear,
   onToggleSettings,
@@ -27,12 +25,6 @@ export function Toolbar({
         title="Scrapea tiendas de la competencia y calcula matches"
       >
         Actualizar competencia
-      </button>
-      <button
-        onClick={onInspectTypes}
-        title="Vuelca los tipos/clasificaciones que trae PSN (para diseñar el filtro de DLC)"
-      >
-        Inspeccionar tipos
       </button>
       <button onClick={onSeed} title="Carga datos de demo para explorar el panel">
         Seed demo

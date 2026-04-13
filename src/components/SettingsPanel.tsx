@@ -136,10 +136,22 @@ export function SettingsPanel({ initial, onSaved, onClose }: Props) {
             />
           </label>
         </div>
+        <label className="chk" style={{ marginTop: 10, display: "flex", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={psn.includeAddOns}
+            onChange={(e) =>
+              setPsn((p) => ({ ...p, includeAddOns: e.target.checked }))
+            }
+          />
+          Incluir DLC / add-ons / monedas / temas
+        </label>
         <p className="help">
           El scraper parsea el HTML de{" "}
           <code>store.playstation.com/&lt;region&gt;/category/&lt;id&gt;/&lt;page&gt;</code>.
-          No hace falta mantener hashes ni tokens.
+          Por defecto filtra a <em>Full Game</em>, <em>Game Bundle</em>,{" "}
+          <em>Premium Edition</em> y <em>Bundle</em>; desmarcá solo si querés
+          ver también complementos.
         </p>
       </div>
 
