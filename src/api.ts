@@ -1,0 +1,78 @@
+import type {
+  ApiError,
+  Filters,
+  GameOut,
+  PricingSettings,
+  PsnConfig,
+  RefreshSummary,
+  SettingsResponse,
+} from "./types";
+
+const API = "/api";
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(API + path, {
+    ...init,
+    headers: { "content-type": "application/json", ...(init?.headers || {}) },
+  });
+  if (!r.ok) {
+    let data: ApiError | null = null;
+    try {
+      data = (await r.json()) as ApiError;
+    } catch {
+      /* ignore */
+    }
+    const err = new Error(data?.message || r.statusText) as Error & ApiError;
+    err.error = data?.error || "request_failed";
+    if (data?.hint) err.hint = data.hint;
+    throw err;
+  }
+  return (await r.json()) as T;
+}
+
+export function fetchGames(f: Filters): Promise<GameOut[]> {
+  const q = new URLSearchParams();
+  if (f.search) q.set("search", f.search);
+  if (f.minDiscount) q.set("min_discount", String(f.minDiscount));
+  if (f.onlySelected) q.set("only_selected", "true");
+  if (f.hidePublished) q.set("hide_published", "true");
+  q.set("sort", f.sort);
+  return req<GameOut[]>(`/games?${q.toString()}`);
+}
+
+export function patchGame(
+  id: string,
+  patch: Partial<Pick<GameOut, "selected" | "published" | "notes">>
+): Promise<GameOut> {
+  return req<GameOut>(`/games/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function refresh(): Promise<RefreshSummary> {
+  return req<RefreshSummary>(`/refresh`, { method: "POST" });
+}
+
+export function getSettings(): Promise<SettingsResponse> {
+  return req<SettingsResponse>(`/settings`);
+}
+
+export function putSettings(
+  patch: { pricing?: Partial<PricingSettings>; psn?: Partial<PsnConfig> }
+): Promise<SettingsResponse> {
+  return req<SettingsResponse>(`/settings`, {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function seedDemo(): Promise<{ seeded: number }> {
+  return req<{ seeded: number }>(`/mock/seed`, { method: "POST" });
+}
+
+export function clearAll(): Promise<{ cleared: number }> {
+  return req<{ cleared: number }>(`/mock/clear`, { method: "POST" });
+}
+
+export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
