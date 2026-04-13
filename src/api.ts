@@ -96,4 +96,19 @@ export function refreshCompetitors(): Promise<CompetitorRefreshResult> {
   return req<CompetitorRefreshResult>(`/competitors/refresh`, { method: "POST" });
 }
 
+export interface ProductTypeInspection {
+  totalSeen: number;
+  classifications: Array<{
+    classification: string;
+    productType: string;
+    count: number;
+    samples: string[];
+  }>;
+  observedKeys: Array<{ key: string; example: string }>;
+}
+
+export function inspectProductTypes(): Promise<ProductTypeInspection> {
+  return req<ProductTypeInspection>(`/debug/product-types`);
+}
+
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;

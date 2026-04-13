@@ -718,6 +718,41 @@ td.market.market-bad {
   letter-spacing: -0.005em;
 }
 
+/* Type inspector */
+.type-keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 4px 18px;
+  font-size: 12px;
+}
+
+.type-key {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(34, 42, 61, 0.6);
+  align-items: baseline;
+}
+
+.type-key code {
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+.type-key span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 11.5px;
+}
+
 /* Pagination */
 .pagination {
   display: flex;

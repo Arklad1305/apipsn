@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { store, type Game } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
+  inspectProductTypes,
   iterCategoryProducts,
   normalizeProduct,
   PersistedQueryNotFoundError,
@@ -387,6 +388,26 @@ route("POST", "/competitors/refresh", async (_req, res) => {
 
   recomputeMatches();
   sendJson(res, 200, { refreshedAt: now, results });
+});
+
+// GET /debug/product-types — one-shot reconnaissance used to design the
+// DLC/add-on filter. Runs a full PSN scrape and reports every classification
+// + productType combo it sees, plus all observed top-level keys. The response
+// is small (a couple of KB), the scrape itself is the slow part.
+route("GET", "/debug/product-types", async (_req, res) => {
+  try {
+    const cfg = store.getPsn();
+    const report = await inspectProductTypes(cfg);
+    sendJson(res, 200, report);
+  } catch (e) {
+    if (e instanceof PsnApiError) {
+      return sendJson(res, 502, {
+        error: "psn_api_error",
+        message: (e as Error).message,
+      });
+    }
+    sendJson(res, 500, { error: "internal", message: (e as Error).message });
+  }
 });
 
 // GET /games/:id/matches — all competitor matches for a game (for popovers)

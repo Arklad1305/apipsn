@@ -5,9 +5,11 @@ import {
   exportCsvUrl,
   fetchGames,
   getSettings,
+  inspectProductTypes,
   refresh,
   refreshCompetitors,
   seedDemo,
+  type ProductTypeInspection,
 } from "./api";
 import type {
   Filters,
@@ -21,6 +23,7 @@ import { FiltersBar } from "./components/FiltersBar";
 import { GamesTable } from "./components/GamesTable";
 import { Pagination } from "./components/Pagination";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { TypeInspectorPanel } from "./components/TypeInspectorPanel";
 
 const PAGE_SIZE = 30;
 
@@ -41,6 +44,7 @@ export function App() {
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [typeReport, setTypeReport] = useState<ProductTypeInspection | null>(null);
   const [page, setPage] = useState(1);
   const statusRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +134,23 @@ export function App() {
     }
   };
 
+  const onInspectTypes = async () => {
+    setStatusKind("info");
+    setStatusMsg("Scaneando tipos en PSN (puede tardar ~30s)…");
+    try {
+      const r = await inspectProductTypes();
+      setTypeReport(r);
+      setShowSettings(false);
+      setStatusKind("ok");
+      setStatusMsg(
+        `Inspección lista: ${r.totalSeen.toLocaleString("es-CL")} productos, ${r.classifications.length} combinaciones`
+      );
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    }
+  };
+
   const onClear = async () => {
     if (!confirm("¿Desactivar todos los juegos?")) return;
     try {
@@ -164,9 +185,13 @@ export function App() {
         <Toolbar
           onRefresh={onRefresh}
           onRefreshCompetitors={onRefreshCompetitors}
+          onInspectTypes={onInspectTypes}
           onSeed={onSeed}
           onClear={onClear}
-          onToggleSettings={() => setShowSettings((s) => !s)}
+          onToggleSettings={() => {
+            setTypeReport(null);
+            setShowSettings((s) => !s);
+          }}
           exportHref={exportCsvUrl}
         />
       </header>
@@ -180,7 +205,12 @@ export function App() {
         </div>
       )}
 
-      {showSettings && settings ? (
+      {typeReport ? (
+        <TypeInspectorPanel
+          report={typeReport}
+          onClose={() => setTypeReport(null)}
+        />
+      ) : showSettings && settings ? (
         <SettingsPanel
           initial={settings}
           onSaved={onSavedSettings}

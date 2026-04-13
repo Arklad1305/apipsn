@@ -45,6 +45,13 @@ interface RawProduct {
   name?: string;
   title?: string;
   platforms?: string[] | string;
+  /** PSN classifies items here: "Full Game", "Add-On", "Game Bundle",
+   *  "Currency", "Avatar", "Theme", "PS Plus · Full Game", etc. */
+  localizedStoreDisplayClassification?: string;
+  storeDisplayClassification?: string;
+  /** Enum-ish: GAME / BUNDLE / ADDON / CURRENCY / THEME / APP / SUBSCRIPTION. */
+  productType?: string;
+  type?: string;
   media?: Array<{ role?: string; url?: string; type?: string }> | null;
   webctas?: Array<{
     price?: {
@@ -64,6 +71,70 @@ interface RawProduct {
     discountText?: string;
     endTime?: string;
   };
+}
+
+/** Shape returned by `inspectProductTypes` — used by the debug route to
+ *  figure out the real classification field names before writing the filter. */
+export interface ProductTypeInspection {
+  totalSeen: number;
+  classifications: Array<{
+    classification: string;
+    productType: string;
+    count: number;
+    samples: string[];
+  }>;
+  /** Every top-level key ever seen on a product object, with an example
+   *  value from the first product that had it. Helps spot any field name
+   *  variation we missed. */
+  observedKeys: Array<{ key: string; example: string }>;
+}
+
+export async function inspectProductTypes(
+  cfg: PsnConfig
+): Promise<ProductTypeInspection> {
+  const byCombo = new Map<
+    string,
+    { classification: string; productType: string; count: number; samples: string[] }
+  >();
+  const observedKeys = new Map<string, string>();
+  let total = 0;
+
+  for await (const raw of iterCategoryProducts(cfg)) {
+    total++;
+    for (const [k, v] of Object.entries(raw)) {
+      if (observedKeys.has(k)) continue;
+      let example: string;
+      if (v == null) example = "null";
+      else if (typeof v === "object") example = JSON.stringify(v).slice(0, 120);
+      else example = String(v).slice(0, 120);
+      observedKeys.set(k, example);
+    }
+    const cls =
+      raw.localizedStoreDisplayClassification ||
+      raw.storeDisplayClassification ||
+      "";
+    const pt = raw.productType || raw.type || "";
+    const key = `${cls}\u0001${pt}`;
+    const existing = byCombo.get(key);
+    if (existing) {
+      existing.count++;
+      if (existing.samples.length < 3 && raw.name) existing.samples.push(raw.name);
+    } else {
+      byCombo.set(key, {
+        classification: cls,
+        productType: pt,
+        count: 1,
+        samples: raw.name ? [raw.name] : [],
+      });
+    }
+  }
+
+  const classifications = [...byCombo.values()].sort((a, b) => b.count - a.count);
+  const keys = [...observedKeys.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, example]) => ({ key, example }));
+
+  return { totalSeen: total, classifications, observedKeys: keys };
 }
 
 export function normalizeProduct(raw: RawProduct, now: string): Game | null {
