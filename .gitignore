@@ -7,3 +7,4 @@ data/
 .vite/
 .idea/
 .vscode/
+tsconfig.tsbuildinfo
