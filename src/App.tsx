@@ -19,7 +19,10 @@ import type {
 import { Toolbar } from "./components/Toolbar";
 import { FiltersBar } from "./components/FiltersBar";
 import { GamesTable } from "./components/GamesTable";
+import { Pagination } from "./components/Pagination";
 import { SettingsPanel } from "./components/SettingsPanel";
+
+const PAGE_SIZE = 30;
 
 const DEFAULT_FILTERS: Filters = {
   search: "",
@@ -38,7 +41,18 @@ export function App() {
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [page, setPage] = useState(1);
   const statusRef = useRef<HTMLDivElement>(null);
+
+  // Any filter change snaps us back to page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
+  const totalPages = Math.max(1, Math.ceil(games.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageGames = games.slice(pageStart, pageStart + PAGE_SIZE);
 
   useLayoutEffect(() => {
     if (statusMsg && statusRef.current) animateSlideIn(statusRef.current);
@@ -189,7 +203,16 @@ export function App() {
               datos de ejemplo (recomendado si estás en Bolt).
             </div>
           ) : (
-            <GamesTable games={games} onGameUpdated={updateGameLocal} />
+            <>
+              <GamesTable games={pageGames} onGameUpdated={updateGameLocal} />
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                pageSize={PAGE_SIZE}
+                total={games.length}
+                onChange={setPage}
+              />
+            </>
           )}
         </>
       )}
