@@ -15,6 +15,7 @@ import type {
   PricingSettings,
   PsnConfig,
   SettingsResponse,
+  WatchlistAlert,
 } from "./types";
 import { Toolbar } from "./components/Toolbar";
 import { FiltersBar } from "./components/FiltersBar";
@@ -22,6 +23,8 @@ import { GamesTable } from "./components/GamesTable";
 import { Pagination } from "./components/Pagination";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { WatchlistPanel } from "./components/WatchlistPanel";
+import { addToWatchlist } from "./api";
 
 const PAGE_SIZE = 30;
 
@@ -42,8 +45,10 @@ export function App() {
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showWatchlist, setShowWatchlist] = useState(false);
   const [detailGame, setDetailGame] = useState<GameOut | null>(null);
   const [page, setPage] = useState(1);
+  const [watchlistAlerts, setWatchlistAlerts] = useState<WatchlistAlert[]>([]);
   const statusRef = useRef<HTMLDivElement>(null);
 
   // Any filter change snaps us back to page 1.
@@ -94,6 +99,9 @@ export function App() {
       setStatusMsg(
         `OK: ${base}${filtered} · ${summary.new} nuevos, ${summary.updated} actualizados, ${summary.disappeared} fuera`
       );
+      if (summary.watchlistAlerts?.length) {
+        setWatchlistAlerts(summary.watchlistAlerts);
+      }
       await reload();
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -159,6 +167,17 @@ export function App() {
     setDetailGame((prev) => (prev && prev.id === g.id ? g : prev));
   };
 
+  const onFollowGame = async (g: GameOut) => {
+    try {
+      await addToWatchlist(g.id);
+      setStatusKind("ok");
+      setStatusMsg(`Sigues a “${g.name}”. Te avisaré cuando entre en oferta.`);
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    }
+  };
+
   return (
     <div className="app">
       <header>
@@ -174,7 +193,14 @@ export function App() {
           onRefreshCompetitors={onRefreshCompetitors}
           onSeed={onSeed}
           onClear={onClear}
-          onToggleSettings={() => setShowSettings((s) => !s)}
+          onToggleSettings={() => {
+            setShowSettings((s) => !s);
+            setShowWatchlist(false);
+          }}
+          onToggleWatchlist={() => {
+            setShowWatchlist((w) => !w);
+            setShowSettings(false);
+          }}
           exportHref={exportCsvUrl}
         />
       </header>
@@ -188,12 +214,43 @@ export function App() {
         </div>
       )}
 
+      {watchlistAlerts.length > 0 && (
+        <div className="status ok watchlist-banner">
+          <span>
+            <strong>
+              {watchlistAlerts.length} juego
+              {watchlistAlerts.length === 1 ? "" : "s"} de tu seguimiento
+              {watchlistAlerts.length === 1 ? " entró" : " entraron"} en oferta:
+            </strong>{" "}
+            {watchlistAlerts
+              .slice(0, 3)
+              .map((a) => `${a.name} (-${a.discountPercent}%)`)
+              .join(" · ")}
+            {watchlistAlerts.length > 3 && ` · +${watchlistAlerts.length - 3}`}
+          </span>
+          <button
+            className="link"
+            onClick={() => {
+              setShowWatchlist(true);
+              setShowSettings(false);
+            }}
+          >
+            Ver
+          </button>
+          <button className="link" onClick={() => setWatchlistAlerts([])}>
+            ✕
+          </button>
+        </div>
+      )}
+
       {detailGame ? (
         <ProductDetailPanel
           game={detailGame}
           onClose={() => setDetailGame(null)}
           onGameUpdated={updateGameLocal}
         />
+      ) : showWatchlist ? (
+        <WatchlistPanel onClose={() => setShowWatchlist(false)} />
       ) : showSettings && settings ? (
         <SettingsPanel
           initial={settings}
@@ -222,6 +279,7 @@ export function App() {
               games={pageGames}
               onGameUpdated={updateGameLocal}
               onOpenDetail={setDetailGame}
+              onFollowGame={onFollowGame}
             />
               <Pagination
                 page={safePage}

@@ -10,6 +10,7 @@ import type {
   PsnConfig,
   RefreshSummary,
   SettingsResponse,
+  WatchedGame,
 } from "./types";
 
 const API = "/api";
@@ -110,6 +111,33 @@ export function refreshProductDetail(id: string): Promise<ProductDetail> {
     `/games/${encodeURIComponent(id)}/detail/refresh`,
     { method: "POST" }
   );
+}
+
+export function listWatchlist(): Promise<{ items: WatchedGame[] }> {
+  return req<{ items: WatchedGame[] }>(`/watchlist`);
+}
+
+export function addToWatchlist(input: string, notes?: string): Promise<WatchedGame> {
+  return req<WatchedGame>(`/watchlist`, {
+    method: "POST",
+    body: JSON.stringify({ input, notes }),
+  });
+}
+
+export function patchWatched(
+  id: string,
+  patch: Partial<Pick<WatchedGame, "notes" | "name">>
+): Promise<WatchedGame> {
+  return req<WatchedGame>(`/watchlist/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function removeFromWatchlist(id: string): Promise<{ removed: boolean }> {
+  return req<{ removed: boolean }>(`/watchlist/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;

@@ -4,6 +4,7 @@ interface Props {
   onSeed: () => void;
   onClear: () => void;
   onToggleSettings: () => void;
+  onToggleWatchlist: () => void;
   exportHref: string;
 }
 
@@ -13,6 +14,7 @@ export function Toolbar({
   onSeed,
   onClear,
   onToggleSettings,
+  onToggleWatchlist,
   exportHref,
 }: Props) {
   return (
@@ -32,6 +34,9 @@ export function Toolbar({
       <a className="button" href={exportHref} target="_blank" rel="noopener">
         Exportar CSV
       </a>
+      <button onClick={onToggleWatchlist} title="Juegos que querés ver cuando entren en oferta">
+        Seguimiento
+      </button>
       <button onClick={onToggleSettings}>Ajustes</button>
       <button className="danger" onClick={onClear}>
         Vaciar

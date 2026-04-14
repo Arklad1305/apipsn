@@ -8,6 +8,7 @@ interface Props {
   games: GameOut[];
   onGameUpdated: (g: GameOut) => void;
   onOpenDetail: (g: GameOut) => void;
+  onFollowGame: (g: GameOut) => void;
 }
 
 const fmtCLP = (n: number | null) =>
@@ -19,7 +20,12 @@ interface OpenPopover {
   anchor: { top: number; left: number; right: number; bottom: number };
 }
 
-export function GamesTable({ games, onGameUpdated, onOpenDetail }: Props) {
+export function GamesTable({
+  games,
+  onGameUpdated,
+  onOpenDetail,
+  onFollowGame,
+}: Props) {
   const [open, setOpen] = useState<OpenPopover | null>(null);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   const prevKeyRef = useRef<string>("");
@@ -153,6 +159,13 @@ export function GamesTable({ games, onGameUpdated, onOpenDetail }: Props) {
                     />
                   </td>
                   <td>
+                    <button
+                      className="link detail-btn"
+                      onClick={() => onFollowGame(g)}
+                      title="Seguir este juego"
+                    >
+                      Seguir
+                    </button>
                     <button
                       className="link detail-btn"
                       onClick={() => onOpenDetail(g)}

@@ -77,6 +77,14 @@ export interface SettingsResponse {
   psn: PsnConfig;
 }
 
+export interface WatchlistAlert {
+  id: string;
+  name: string;
+  discountPercent: number;
+  priceDiscountedUsd: number | null;
+  storeUrl: string | null;
+}
+
 export interface RefreshSummary {
   new: number;
   updated: number;
@@ -84,6 +92,18 @@ export interface RefreshSummary {
   totalSeen: number;
   kept: number;
   filteredAddOns: number;
+  watchlistAlerts: WatchlistAlert[];
+}
+
+export interface WatchedGame {
+  id: string;
+  name: string;
+  addedAt: string;
+  lastStatus: "unseen" | "on_sale" | "off_sale";
+  lastSeenOnSaleAt: string | null;
+  lastPriceCents: number | null;
+  lastDiscountPercent: number;
+  notes: string;
 }
 
 export interface ApiError {

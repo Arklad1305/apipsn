@@ -11,6 +11,21 @@ import type {
 } from "./competitors";
 import type { ProductDetail } from "./psn-product";
 
+/** A game the user is tracking even when it's not in the current Weekly Deals
+ *  category. Every /refresh diffs these against the scrape and reports
+ *  transitions (off_sale → on_sale) back to the client. */
+export interface WatchedGame {
+  id: string;
+  name: string;
+  addedAt: string;
+  /** "unseen" = never found in any refresh yet. */
+  lastStatus: "unseen" | "on_sale" | "off_sale";
+  lastSeenOnSaleAt: string | null;
+  lastPriceCents: number | null;
+  lastDiscountPercent: number;
+  notes: string;
+}
+
 export interface Game {
   id: string;
   name: string;
@@ -60,6 +75,7 @@ interface DbShape {
   competitorMatches: Record<string, CompetitorMatch[]>;
   competitorRefreshedAt: Record<string, string>;
   productDetails: Record<string, ProductDetail>;
+  watchlist: Record<string, WatchedGame>;
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -116,6 +132,7 @@ function load(): DbShape {
       competitorMatches: parsed.competitorMatches ?? {},
       competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
       productDetails: parsed.productDetails ?? {},
+      watchlist: parsed.watchlist ?? {},
     };
   } catch {
     return {
@@ -127,6 +144,7 @@ function load(): DbShape {
       competitorMatches: {},
       competitorRefreshedAt: {},
       productDetails: {},
+      watchlist: {},
     };
   }
 }
@@ -232,6 +250,31 @@ export const store = {
   setProductDetail(id: string, detail: ProductDetail): void {
     db.productDetails[id] = detail;
     scheduleSave();
+  },
+  listWatchlist(): WatchedGame[] {
+    return Object.values(db.watchlist);
+  },
+  getWatched(id: string): WatchedGame | undefined {
+    return db.watchlist[id];
+  },
+  upsertWatched(entry: WatchedGame): WatchedGame {
+    db.watchlist[entry.id] = entry;
+    scheduleSave();
+    return { ...entry };
+  },
+  patchWatched(id: string, patch: Partial<WatchedGame>): WatchedGame | undefined {
+    const existing = db.watchlist[id];
+    if (!existing) return undefined;
+    const updated: WatchedGame = { ...existing, ...patch };
+    db.watchlist[id] = updated;
+    scheduleSave();
+    return updated;
+  },
+  removeWatched(id: string): boolean {
+    if (!db.watchlist[id]) return false;
+    delete db.watchlist[id];
+    scheduleSave();
+    return true;
   },
   flush(): void {
     if (saveTimer) clearTimeout(saveTimer);

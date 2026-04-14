@@ -437,6 +437,59 @@ td.name .notes {
   position: relative;
 }
 
+.watchlist-add {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.watchlist-add input {
+  flex: 1;
+  padding: 9px 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.watchlist-add input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.badge.ok {
+  border-color: rgba(80, 180, 120, 0.4);
+  background: rgba(80, 180, 120, 0.12);
+  color: #9fd6b4;
+}
+
+.badge.muted {
+  color: var(--muted);
+}
+
+.watchlist-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.watchlist-banner span {
+  flex: 1;
+}
+
 .loading::after {
   content: "";
   display: inline-block;

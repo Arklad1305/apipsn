@@ -12,7 +12,7 @@
  *   GET    /mock/seed                  populate with demo games (Bolt preview)
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { store, type Game } from "./store";
+import { store, type Game, type WatchedGame } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
   inspectProductTypes,
@@ -31,6 +31,62 @@ import {
   type CompetitorMatch,
 } from "./competitors";
 import { fetchProductDetail } from "./psn-product";
+
+/** Extract a PSN product id from a store URL. Accepts both en-US and other
+ *  locales, and tolerates trailing segments / query strings. */
+function extractPsnId(input: string): string | null {
+  const s = String(input || "").trim();
+  if (!s) return null;
+  // Already an id (UPXXXX-CUSAXXXXX_00-… or EP… / UC…)
+  if (/^[A-Z]{2}[0-9]{4}-[A-Z0-9]+_[0-9]{2}(?:-[A-Z0-9]+)?$/.test(s)) return s;
+  const m = /\/product\/([A-Z]{2}[0-9]{4}-[A-Z0-9]+_[0-9]{2}(?:-[A-Z0-9]+)?)/i.exec(
+    s
+  );
+  return m ? m[1].toUpperCase() : null;
+}
+
+interface WatchlistAlert {
+  id: string;
+  name: string;
+  discountPercent: number;
+  priceDiscountedUsd: number | null;
+  storeUrl: string | null;
+}
+
+/** Diff the watchlist against the fresh scrape and flag transitions. Updates
+ *  each watched entry's lastStatus in place. Returns the list of games that
+ *  transitioned off_sale → on_sale this run. */
+function diffWatchlist(seen: Set<string>, nowIso: string): WatchlistAlert[] {
+  const alerts: WatchlistAlert[] = [];
+  for (const w of store.listWatchlist()) {
+    const game = store.getGame(w.id);
+    const inSaleNow =
+      !!game && game.active && game.discountPercent > 0 && seen.has(w.id);
+    const transitioned = inSaleNow && w.lastStatus !== "on_sale";
+
+    if (transitioned && game) {
+      alerts.push({
+        id: w.id,
+        name: game.name,
+        discountPercent: game.discountPercent,
+        priceDiscountedUsd:
+          game.priceDiscountedCents != null
+            ? game.priceDiscountedCents / 100
+            : null,
+        storeUrl: game.storeUrl,
+      });
+    }
+
+    store.patchWatched(w.id, {
+      name: game?.name || w.name,
+      lastStatus: inSaleNow ? "on_sale" : w.lastStatus === "unseen" ? "unseen" : "off_sale",
+      lastSeenOnSaleAt: inSaleNow ? nowIso : w.lastSeenOnSaleAt,
+      lastPriceCents: game?.priceDiscountedCents ?? w.lastPriceCents,
+      lastDiscountPercent: game?.discountPercent ?? w.lastDiscountPercent,
+    });
+  }
+  return alerts;
+}
 
 type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>) => Promise<void>;
 
@@ -204,6 +260,7 @@ route("POST", "/refresh", async (_req, res) => {
     const disappeared = store.markInactiveIfMissing(seen);
     // Recompute competitor matches against the refreshed catalogue.
     recomputeMatches();
+    const watchlistAlerts = diffWatchlist(seen, nowIso);
     sendJson(res, 200, {
       new: newCount,
       updated,
@@ -211,6 +268,7 @@ route("POST", "/refresh", async (_req, res) => {
       totalSeen,
       kept: seen.size,
       filteredAddOns,
+      watchlistAlerts,
     });
   } catch (e) {
     if (e instanceof PersistedQueryNotFoundError) {
@@ -460,6 +518,58 @@ route("POST", "/games/:id/detail/refresh", async (_req, res, params) => {
     }
     sendJson(res, 500, { error: "internal", message: (e as Error).message });
   }
+});
+
+// GET /watchlist — tracked games + current status snapshot.
+route("GET", "/watchlist", async (_req, res) => {
+  sendJson(res, 200, { items: store.listWatchlist() });
+});
+
+// POST /watchlist — add a game by URL or id. Body: { input: string, notes? }
+route("POST", "/watchlist", async (req, res) => {
+  const body = (await readBody(req)) as { input?: string; notes?: string };
+  const id = extractPsnId(body.input ?? "");
+  if (!id) {
+    return sendJson(res, 400, {
+      error: "bad_input",
+      message: "Pegá la URL del producto en PSN o un ID tipo UPXXXX-CUSAXXXXX_00-…",
+    });
+  }
+  const existing = store.getWatched(id);
+  if (existing) return sendJson(res, 200, existing);
+
+  const game = store.getGame(id);
+  const now = new Date().toISOString();
+  const entry: WatchedGame = {
+    id,
+    name: game?.name || id,
+    addedAt: now,
+    lastStatus: game?.active && game.discountPercent > 0 ? "on_sale" : game ? "off_sale" : "unseen",
+    lastSeenOnSaleAt:
+      game?.active && game.discountPercent > 0 ? now : null,
+    lastPriceCents: game?.priceDiscountedCents ?? null,
+    lastDiscountPercent: game?.discountPercent ?? 0,
+    notes: (body.notes ?? "").trim(),
+  };
+  sendJson(res, 201, store.upsertWatched(entry));
+});
+
+// PATCH /watchlist/:id — edit notes or name.
+route("PATCH", "/watchlist/:id", async (req, res, params) => {
+  const body = (await readBody(req)) as Partial<Pick<WatchedGame, "notes" | "name">>;
+  const patch: Partial<WatchedGame> = {};
+  if (typeof body.notes === "string") patch.notes = body.notes;
+  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  const updated = store.patchWatched(params.id, patch);
+  if (!updated) return sendJson(res, 404, { error: "not_found" });
+  sendJson(res, 200, updated);
+});
+
+// DELETE /watchlist/:id
+route("DELETE", "/watchlist/:id", async (_req, res, params) => {
+  const ok = store.removeWatched(params.id);
+  if (!ok) return sendJson(res, 404, { error: "not_found" });
+  sendJson(res, 200, { removed: true });
 });
 
 // GET /games/:id/matches — all competitor matches for a game (for popovers)
