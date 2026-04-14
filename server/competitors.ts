@@ -105,16 +105,16 @@ function parseClp(v: unknown): number | null {
   }
   const s = String(v).replace(/[^\d,.-]/g, "");
   if (!s) return null;
-  // Chilean format often uses "." as thousands separator, "," as decimal.
-  // Shopify exports decimals with ".", Woo with either. We strip all but the
-  // last separator and treat that as the decimal point.
-  const cleaned = s.replace(/[.,]/g, (_, i, str) =>
-    i === str.lastIndexOf(".") || i === str.lastIndexOf(",") ? "." : ""
-  );
+  // CLP has no decimals. Dots and commas are almost always thousands
+  // separators ("$6.990"). The only decimal-ish case we see is Shopify's
+  // USD-style "7990.00" / "7990,00" — last separator followed by exactly
+  // 2 digits. Detect that, drop the decimal tail, strip the rest.
+  let cleaned = s;
+  const decimalTail = /[.,](\d{2})$/.exec(s);
+  if (decimalTail) cleaned = s.slice(0, -3);
+  cleaned = cleaned.replace(/[.,]/g, "");
   const n = Number(cleaned);
   if (!Number.isFinite(n)) return null;
-  // If the resulting value has a fractional part smaller than 1, we assume
-  // the ".xx" was CLP cents noise (not valid for Chilean peso) and round.
   return Math.round(n);
 }
 
