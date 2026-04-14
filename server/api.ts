@@ -95,6 +95,7 @@ function toGameOut(g: Game, cfgPricing = store.getSettings()) {
     selected: g.selected,
     published: g.published,
     notes: g.notes,
+    youtubeUrl: g.youtubeUrl || "",
     active: g.active,
     costClp: sale?.costClp ?? null,
     primaria1: sale?.primaria1 ?? null,
@@ -145,11 +146,14 @@ route("GET", "/games", async (req, res) => {
 
 // PATCH /games/:id
 route("PATCH", "/games/:id", async (req, res, params) => {
-  const body = (await readBody(req)) as Partial<Pick<Game, "selected" | "published" | "notes">>;
+  const body = (await readBody(req)) as Partial<
+    Pick<Game, "selected" | "published" | "notes" | "youtubeUrl">
+  >;
   const patch: Partial<Game> = {};
   if (typeof body.selected === "boolean") patch.selected = body.selected;
   if (typeof body.published === "boolean") patch.published = body.published;
   if (typeof body.notes === "string") patch.notes = body.notes;
+  if (typeof body.youtubeUrl === "string") patch.youtubeUrl = body.youtubeUrl.trim();
   const updated = store.patchGame(params.id, patch);
   if (!updated) return sendJson(res, 404, { error: "not_found" });
   sendJson(res, 200, toGameOut(updated));

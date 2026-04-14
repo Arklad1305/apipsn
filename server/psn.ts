@@ -223,6 +223,7 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
     selected: false,
     published: false,
     notes: "",
+    youtubeUrl: "",
     active: true,
     firstSeenAt: now,
     lastSeenAt: now,

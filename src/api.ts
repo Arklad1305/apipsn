@@ -47,7 +47,7 @@ export function fetchGames(f: Filters): Promise<GameOut[]> {
 
 export function patchGame(
   id: string,
-  patch: Partial<Pick<GameOut, "selected" | "published" | "notes">>
+  patch: Partial<Pick<GameOut, "selected" | "published" | "notes" | "youtubeUrl">>
 ): Promise<GameOut> {
   return req<GameOut>(`/games/${encodeURIComponent(id)}`, {
     method: "PATCH",

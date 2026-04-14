@@ -24,6 +24,9 @@ export interface Game {
   selected: boolean;
   published: boolean;
   notes: string;
+  /** Optional YouTube URL the user pastes manually. Used as a fallback for the
+   *  ficha video when PSN doesn't expose a PROMO/VIDEO asset. */
+  youtubeUrl: string;
   active: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -99,8 +102,13 @@ function load(): DbShape {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DbShape>;
+    const games = parsed.games ?? {};
+    // Back-fill youtubeUrl on games persisted before the field existed.
+    for (const g of Object.values(games)) {
+      if (typeof (g as Game).youtubeUrl !== "string") (g as Game).youtubeUrl = "";
+    }
     return {
-      games: parsed.games ?? {},
+      games,
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
       psn: { ...DEFAULT_PSN, ...(parsed.psn ?? {}) },
       competitors: parsed.competitors ?? [...DEFAULT_COMPETITORS],

@@ -862,6 +862,64 @@ td.market.market-bad {
   padding-left: 22px;
 }
 
+.detail-video {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.detail-video video,
+.detail-video iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+
+.detail-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.detail-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-edit input,
+.detail-edit textarea {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.detail-edit input:focus,
+.detail-edit textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.detail-edit-err {
+  color: var(--danger, #e06060);
+  font-size: 11.5px;
+}
+
+.detail-edit-hint {
+  font-size: 11.5px;
+}
+
 .gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

@@ -20,6 +20,7 @@ export interface GameOut {
   selected: boolean;
   published: boolean;
   notes: string;
+  youtubeUrl: string;
   active: boolean;
   costClp: number | null;
   primaria1: number | null;

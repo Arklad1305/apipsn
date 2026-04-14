@@ -192,6 +192,7 @@ export function App() {
         <ProductDetailPanel
           game={detailGame}
           onClose={() => setDetailGame(null)}
+          onGameUpdated={updateGameLocal}
         />
       ) : showSettings && settings ? (
         <SettingsPanel

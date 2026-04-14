@@ -4,7 +4,7 @@
  */
 import type { Game } from "./store";
 
-const DEMO: Array<Omit<Game, "firstSeenAt" | "lastSeenAt" | "updatedAt">> = [
+const DEMO: Array<Omit<Game, "firstSeenAt" | "lastSeenAt" | "updatedAt" | "youtubeUrl">> = [
   {
     id: "UP9000-CUSA07408_00-REDEMPTION2000000",
     name: "Red Dead Redemption 2",
@@ -172,6 +172,7 @@ const DEMO: Array<Omit<Game, "firstSeenAt" | "lastSeenAt" | "updatedAt">> = [
 export function demoGames(nowIso: string): Game[] {
   return DEMO.map((g) => ({
     ...g,
+    youtubeUrl: "",
     firstSeenAt: nowIso,
     lastSeenAt: nowIso,
     updatedAt: nowIso,
