@@ -73,10 +73,6 @@ export function putSettings(
   });
 }
 
-export function seedDemo(): Promise<{ seeded: number }> {
-  return req<{ seeded: number }>(`/mock/seed`, { method: "POST" });
-}
-
 export function clearAll(): Promise<{ cleared: number }> {
   return req<{ cleared: number }>(`/mock/clear`, { method: "POST" });
 }

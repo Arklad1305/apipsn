@@ -1,46 +1,43 @@
 interface Props {
   onRefresh: () => void;
   onRefreshCompetitors: () => void;
-  onSeed: () => void;
   onClear: () => void;
-  onToggleSettings: () => void;
-  onToggleWatchlist: () => void;
   exportHref: string;
+  variant: "offers" | "watchlist" | "settings";
 }
 
+/** Contextual action bar. The primary "refresh" action sits on the offers tab;
+ *  on watchlist we only expose refresh + export; on settings we hide it
+ *  entirely because the save buttons live inside the page. */
 export function Toolbar({
   onRefresh,
   onRefreshCompetitors,
-  onSeed,
   onClear,
-  onToggleSettings,
-  onToggleWatchlist,
   exportHref,
+  variant,
 }: Props) {
+  if (variant === "settings") return null;
   return (
     <div className="toolbar">
       <button className="primary" onClick={onRefresh}>
         Actualizar ofertas
       </button>
-      <button
-        onClick={onRefreshCompetitors}
-        title="Scrapea tiendas de la competencia y calcula matches"
-      >
-        Actualizar competencia
-      </button>
-      <button onClick={onSeed} title="Carga datos de demo para explorar el panel">
-        Seed demo
-      </button>
+      {variant === "offers" && (
+        <button
+          onClick={onRefreshCompetitors}
+          title="Scrapea tiendas de la competencia y calcula matches"
+        >
+          Actualizar competencia
+        </button>
+      )}
       <a className="button" href={exportHref} target="_blank" rel="noopener">
         Exportar CSV
       </a>
-      <button onClick={onToggleWatchlist} title="Juegos que querés ver cuando entren en oferta">
-        Seguimiento
-      </button>
-      <button onClick={onToggleSettings}>Ajustes</button>
-      <button className="danger" onClick={onClear}>
-        Vaciar
-      </button>
+      {variant === "offers" && (
+        <button className="danger" onClick={onClear} title="Desactivar todos los juegos">
+          Vaciar
+        </button>
+      )}
     </div>
   );
 }

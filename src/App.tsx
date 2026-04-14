@@ -1,30 +1,28 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { animateSlideIn } from "./anim";
 import {
+  addToWatchlist,
   clearAll,
   exportCsvUrl,
   fetchGames,
   getSettings,
   refresh,
   refreshCompetitors,
-  seedDemo,
 } from "./api";
 import type {
   Filters,
   GameOut,
-  PricingSettings,
-  PsnConfig,
   SettingsResponse,
   WatchlistAlert,
 } from "./types";
 import { Toolbar } from "./components/Toolbar";
+import { Tabs } from "./components/Tabs";
 import { FiltersBar } from "./components/FiltersBar";
 import { GamesTable } from "./components/GamesTable";
 import { Pagination } from "./components/Pagination";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WatchlistPanel } from "./components/WatchlistPanel";
-import { addToWatchlist } from "./api";
 
 const PAGE_SIZE = 30;
 
@@ -37,6 +35,14 @@ const DEFAULT_FILTERS: Filters = {
   sort: "discount",
 };
 
+type TabId = "offers" | "watchlist" | "settings";
+
+const TABS: { id: TabId; label: string; hint?: string }[] = [
+  { id: "offers", label: "Ofertas", hint: "Catálogo de ofertas semanales de PSN" },
+  { id: "watchlist", label: "Seguimiento", hint: "Juegos que te avisamos cuando entren en oferta" },
+  { id: "settings", label: "Configuración", hint: "Precios, PSN y competencia" },
+];
+
 export function App() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [games, setGames] = useState<GameOut[]>([]);
@@ -44,8 +50,7 @@ export function App() {
   const [statusMsg, setStatusMsg] = useState<string>("");
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showWatchlist, setShowWatchlist] = useState(false);
+  const [tab, setTab] = useState<TabId>("offers");
   const [detailGame, setDetailGame] = useState<GameOut | null>(null);
   const [page, setPage] = useState(1);
   const [watchlistAlerts, setWatchlistAlerts] = useState<WatchlistAlert[]>([]);
@@ -130,20 +135,6 @@ export function App() {
     }
   };
 
-  const onSeed = async () => {
-    setStatusKind("info");
-    setStatusMsg("Cargando datos demo…");
-    try {
-      const r = await seedDemo();
-      setStatusKind("ok");
-      setStatusMsg(`Demo cargado: ${r.seeded} juegos`);
-      await reload();
-    } catch (e) {
-      setStatusKind("err");
-      setStatusMsg((e as Error).message);
-    }
-  };
-
   const onClear = async () => {
     if (!confirm("¿Desactivar todos los juegos?")) return;
     try {
@@ -158,7 +149,7 @@ export function App() {
   const onSavedSettings = (s: SettingsResponse) => {
     setSettings(s);
     setStatusKind("ok");
-    setStatusMsg("Ajustes guardados");
+    setStatusMsg("Configuración guardada");
     reload();
   };
 
@@ -178,30 +169,35 @@ export function App() {
     }
   };
 
+  const activeTab: TabId = detailGame ? "offers" : tab;
+
   return (
     <div className="app">
-      <header>
-        <div>
+      <header className="app-header">
+        <div className="brand">
           <h1>apipsn</h1>
           <p className="subtitle">
-            Ofertas PS Store US · precios de reventa en CLP (primaria 1 ·
-            primaria 2 · secundaria)
+            Ofertas PS Store US · precios de reventa en CLP
           </p>
         </div>
+        <Tabs tabs={TABS} active={activeTab} onChange={(id) => {
+          setTab(id);
+          setDetailGame(null);
+        }} />
         <Toolbar
           onRefresh={onRefresh}
           onRefreshCompetitors={onRefreshCompetitors}
-          onSeed={onSeed}
           onClear={onClear}
-          onToggleSettings={() => {
-            setShowSettings((s) => !s);
-            setShowWatchlist(false);
-          }}
-          onToggleWatchlist={() => {
-            setShowWatchlist((w) => !w);
-            setShowSettings(false);
-          }}
           exportHref={exportCsvUrl}
+          variant={
+            detailGame
+              ? "offers"
+              : tab === "watchlist"
+              ? "watchlist"
+              : tab === "settings"
+              ? "settings"
+              : "offers"
+          }
         />
       </header>
 
@@ -231,8 +227,8 @@ export function App() {
           <button
             className="link"
             onClick={() => {
-              setShowWatchlist(true);
-              setShowSettings(false);
+              setTab("watchlist");
+              setDetailGame(null);
             }}
           >
             Ver
@@ -249,14 +245,12 @@ export function App() {
           onClose={() => setDetailGame(null)}
           onGameUpdated={updateGameLocal}
         />
-      ) : showWatchlist ? (
-        <WatchlistPanel onClose={() => setShowWatchlist(false)} />
-      ) : showSettings && settings ? (
-        <SettingsPanel
-          initial={settings}
-          onSaved={onSavedSettings}
-          onClose={() => setShowSettings(false)}
-        />
+      ) : tab === "watchlist" ? (
+        <WatchlistPanel />
+      ) : tab === "settings" && settings ? (
+        <SettingsPanel initial={settings} onSaved={onSavedSettings} />
+      ) : tab === "settings" ? (
+        <div className="loading">Cargando configuración…</div>
       ) : (
         <>
           <FiltersBar
@@ -269,18 +263,17 @@ export function App() {
             <div className="loading">Cargando…</div>
           ) : games.length === 0 ? (
             <div className="empty">
-              No hay juegos todavía. Usá <strong>Actualizar ofertas</strong>{" "}
-              para consultar PSN, o <strong>Seed demo</strong> para poblar con
-              datos de ejemplo (recomendado si estás en Bolt).
+              No hay juegos todavía. Apretá <strong>Actualizar ofertas</strong>{" "}
+              para consultar PSN.
             </div>
           ) : (
             <>
               <GamesTable
-              games={pageGames}
-              onGameUpdated={updateGameLocal}
-              onOpenDetail={setDetailGame}
-              onFollowGame={onFollowGame}
-            />
+                games={pageGames}
+                onGameUpdated={updateGameLocal}
+                onOpenDetail={setDetailGame}
+                onFollowGame={onFollowGame}
+              />
               <Pagination
                 page={safePage}
                 totalPages={totalPages}

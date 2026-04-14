@@ -6,10 +6,6 @@ import {
 } from "../api";
 import type { WatchedGame } from "../types";
 
-interface Props {
-  onClose: () => void;
-}
-
 const fmtUSD = (cents: number | null) =>
   cents == null ? "—" : "$" + (cents / 100).toFixed(2);
 
@@ -31,7 +27,7 @@ function fmtDate(iso: string | null): string {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-CL");
 }
 
-export function WatchlistPanel({ onClose }: Props) {
+export function WatchlistPanel() {
   const [items, setItems] = useState<WatchedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
@@ -90,15 +86,16 @@ export function WatchlistPanel({ onClose }: Props) {
   });
 
   return (
-    <section className="detail">
-      <div className="detail-top">
-        <button onClick={onClose} className="back" title="Volver al panel">
-          <span aria-hidden="true">←</span> Volver al panel
-        </button>
-        <h2 className="detail-hero-title" style={{ margin: 0 }}>
-          Seguimiento
-        </h2>
-      </div>
+    <section className="watchlist-panel">
+      <header className="watchlist-header">
+        <div>
+          <h3>Seguimiento</h3>
+          <p className="help">
+            Pegá la URL de PSN de un juego que te interese. Cuando entre en
+            oferta semanal, te avisaremos al actualizar ofertas.
+          </p>
+        </div>
+      </header>
 
       <form className="watchlist-add" onSubmit={onAdd}>
         <input

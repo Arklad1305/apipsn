@@ -9,7 +9,7 @@
  *   GET    /games/export.csv           CSV of selected games
  *   GET    /settings                   pricing + psn config
  *   PUT    /settings                   partial update (pricing and/or psn)
- *   GET    /mock/seed                  populate with demo games (Bolt preview)
+ *   POST   /mock/clear                 deactivate all games
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { store, type Game, type WatchedGame } from "./store";
@@ -22,7 +22,6 @@ import {
   PersistedQueryNotFoundError,
   PsnApiError,
 } from "./psn";
-import { demoGames } from "./demo-data";
 import {
   fetchCompetitor,
   matchGames,
@@ -286,8 +285,8 @@ route("POST", "/refresh", async (_req, res) => {
         error: "psn_api_error",
         message: (e as Error).message,
         hint:
-          "Si esto corre en Bolt/StackBlitz la IP de la sandbox puede estar " +
-          "bloqueada por PSN. Usa 'Seed demo' para ver el panel con datos de ejemplo.",
+          "Si esto corre en una sandbox (Bolt/StackBlitz) la IP puede estar " +
+          "bloqueada por PSN. Probá desde tu máquina o servidor.",
       });
     }
     sendJson(res, 500, { error: "internal", message: (e as Error).message });
@@ -371,17 +370,6 @@ route("PUT", "/settings", async (req, res) => {
   const pricing = body.pricing ? store.updateSettings(body.pricing) : store.getSettings();
   const psn = body.psn ? store.updatePsn(body.psn) : store.getPsn();
   sendJson(res, 200, { pricing, psn });
-});
-
-// POST /mock/seed — populate demo data so the panel is usable in Bolt
-route("POST", "/mock/seed", async (_req, res) => {
-  const now = new Date().toISOString();
-  let n = 0;
-  for (const g of demoGames(now)) {
-    store.upsertGame(g);
-    n++;
-  }
-  sendJson(res, 200, { seeded: n });
 });
 
 // POST /mock/clear — remove all games
