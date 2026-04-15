@@ -23,8 +23,63 @@ import { Pagination } from "./components/Pagination";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WatchlistPanel } from "./components/WatchlistPanel";
+import {
+  CategoryCarousel,
+  type CarouselItem,
+} from "./components/CategoryCarousel";
 
 const PAGE_SIZE = 30;
+
+const SAMPLE_GAMES: CarouselItem[] = [
+  {
+    id: "s1",
+    title: "God of War Ragnarök",
+    subtitle: "Acción · Aventura",
+    background: "linear-gradient(135deg, #d06025 0%, #4a1505 55%, #180500 100%)",
+  },
+  {
+    id: "s2",
+    title: "Spider-Man 2",
+    subtitle: "Acción",
+    background: "linear-gradient(135deg, #c21a1a 0%, #4b0710 60%, #0a0105 100%)",
+  },
+  {
+    id: "s3",
+    title: "The Last of Us Part II",
+    subtitle: "Aventura",
+    background: "linear-gradient(135deg, #8a6236 0%, #2a1b0a 55%, #0c0703 100%)",
+  },
+  {
+    id: "s4",
+    title: "Horizon Forbidden West",
+    subtitle: "RPG · Acción",
+    background: "linear-gradient(135deg, #f59e0b 0%, #7c3a06 55%, #1f1204 100%)",
+  },
+  {
+    id: "s5",
+    title: "Ghost of Tsushima",
+    subtitle: "Acción · Mundo abierto",
+    background: "linear-gradient(135deg, #c53b3b 0%, #4a0e14 55%, #120405 100%)",
+  },
+  {
+    id: "s6",
+    title: "Gran Turismo 7",
+    subtitle: "Carreras",
+    background: "linear-gradient(135deg, #2563eb 0%, #0c2a63 55%, #04091a 100%)",
+  },
+  {
+    id: "s7",
+    title: "Demon's Souls",
+    subtitle: "RPG · Souls-like",
+    background: "linear-gradient(135deg, #6b7280 0%, #1f2937 55%, #050608 100%)",
+  },
+  {
+    id: "s8",
+    title: "Returnal",
+    subtitle: "Shooter · Roguelike",
+    background: "linear-gradient(135deg, #a855f7 0%, #3b0e5e 55%, #10041c 100%)",
+  },
+];
 
 const DEFAULT_FILTERS: Filters = {
   search: "",
@@ -253,6 +308,10 @@ export function App() {
         <div className="loading">Cargando configuración…</div>
       ) : (
         <>
+          <CategoryCarousel
+            heading="¡Explora por categoría! 🎮"
+            items={SAMPLE_GAMES}
+          />
           <FiltersBar
             filters={filters}
             setFilters={setFilters}

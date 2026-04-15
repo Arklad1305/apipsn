@@ -1456,6 +1456,187 @@ td.market.market-bad {
   line-height: 1.5;
 }
 
+/* 3D coverflow carousel */
+.coverflow-wrap {
+  margin: 4px 0 24px;
+}
+
+.coverflow-heading {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-align: center;
+}
+
+.coverflow {
+  position: relative;
+  height: 380px;
+  perspective: 1400px;
+  perspective-origin: 50% 45%;
+  overflow: hidden;
+}
+
+.coverflow-track {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  bottom: 10px;
+  width: 0;
+  transform-style: preserve-3d;
+}
+
+.coverflow-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 360px;
+  margin-left: -130px;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  transform-origin: center center;
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.55s ease, opacity 0.35s ease, box-shadow 0.35s ease;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  will-change: transform, filter;
+}
+
+.coverflow-card.active {
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 0 40px rgba(45, 127, 249, 0.25);
+}
+
+.coverflow-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 20px 40px rgba(0, 0, 0, 0.55);
+}
+
+.coverflow-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 20px 18px 22px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 45%,
+    rgba(0, 0, 0, 0.55) 75%,
+    rgba(0, 0, 0, 0.88) 100%
+  );
+  gap: 12px;
+}
+
+.coverflow-caption {
+  text-align: center;
+}
+
+.coverflow-subtitle {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.coverflow-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.coverflow-cta {
+  display: inline-block;
+  padding: 7px 18px;
+  background: #0a5d9f;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: background 0.14s ease;
+}
+
+.coverflow-card.active:hover .coverflow-cta {
+  background: #1476c4;
+}
+
+.coverflow-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 20;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(20, 26, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+
+.coverflow-nav:hover {
+  background: rgba(45, 127, 249, 0.85);
+  border-color: transparent;
+}
+
+.coverflow-prev {
+  left: 16px;
+}
+
+.coverflow-next {
+  right: 16px;
+}
+
+.coverflow-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.coverflow-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--border-strong);
+  border: none;
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.14s ease;
+  box-shadow: none;
+}
+
+.coverflow-dot.active {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
 /* Scrollbar polish */
 *::-webkit-scrollbar {
   width: 10px;
