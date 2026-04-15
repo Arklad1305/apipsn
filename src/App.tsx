@@ -27,6 +27,7 @@ import {
   CategoryCarousel,
   type CarouselItem,
 } from "./components/CategoryCarousel";
+import { FeaturedHero } from "./components/FeaturedHero";
 
 const PAGE_SIZE = 30;
 
@@ -308,6 +309,7 @@ export function App() {
         <div className="loading">Cargando configuración…</div>
       ) : (
         <>
+          <FeaturedHero items={SAMPLE_GAMES} />
           <CategoryCarousel
             heading="¡Explora por categoría! 🎮"
             items={SAMPLE_GAMES}
