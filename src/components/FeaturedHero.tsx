@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CarouselItem } from "./CategoryCarousel";
 
 interface Props {
@@ -8,43 +8,88 @@ interface Props {
   onSelect?: (item: CarouselItem) => void;
 }
 
+// Cards march left → right. Spotlight sits at the right edge, and every card
+// interpolates its size by distance to the spotlight — the closer to the end,
+// the bigger. When a card reaches the spotlight it's at full size; one tick
+// later it slides off to the right and re-enters small from the left.
 const VISIBLE = 7;
-const SPOTLIGHT_SLOT = 3;
-const SMALL_W = 96;
-const SMALL_H = 128;
-const BIG_W = 188;
-const BIG_H = 238;
-const GAP = 12;
+const SPOTLIGHT_SLOT = VISIBLE - 1;
+const MIN_W = 58;
+const MIN_H = 78;
+const MAX_W = 220;
+const MAX_H = 280;
+const GAP = 10;
 
-/** Full-bleed hero banner with an auto-advancing thumbnail strip at the
- *  bottom. The whole background, title and copy swap to whichever item
- *  currently owns the spotlight slot; crossfade is handled by stacking one
- *  background layer per item and toggling opacity. */
-export function FeaturedHero({ items, intervalMs = 4500, onSelect }: Props) {
+function sizeForSlot(slot: number): { w: number; h: number } {
+  const clamped = Math.max(0, Math.min(SPOTLIGHT_SLOT, slot));
+  const t = clamped / SPOTLIGHT_SLOT; // 0..1
+  const eased = Math.pow(t, 1.4); // gentle acceleration near the spotlight
+  return {
+    w: MIN_W + (MAX_W - MIN_W) * eased,
+    h: MIN_H + (MAX_H - MIN_H) * eased,
+  };
+}
+
+/** X coordinate of a slot's left edge, computed by summing the interpolated
+ *  widths of every slot to its left (plus gaps). */
+function slotX(slot: number): number {
+  if (slot < 0) {
+    return -sizeForSlot(0).w - GAP;
+  }
+  let x = 0;
+  const upTo = Math.min(slot, SPOTLIGHT_SLOT + 1);
+  for (let i = 0; i < upTo; i++) {
+    x += sizeForSlot(i).w + GAP;
+  }
+  if (slot > SPOTLIGHT_SLOT) {
+    // Past the spotlight: park off to the right so exit is a small slide.
+    x += (slot - SPOTLIGHT_SLOT) * GAP;
+  }
+  return x;
+}
+
+function slotY(slot: number): number {
+  return (MAX_H - sizeForSlot(slot).h) / 2;
+}
+
+function stripWidth(): number {
+  let w = 0;
+  for (let i = 0; i <= SPOTLIGHT_SLOT; i++) {
+    w += sizeForSlot(i).w + (i < SPOTLIGHT_SLOT ? GAP : 0);
+  }
+  return w;
+}
+
+/** Full-bleed hero banner with an auto-advancing thumbnail strip. Cards
+ *  enter small from the left, grow progressively as they slide right, and
+ *  bloom to full size when they reach the spotlight at the far end. */
+export function FeaturedHero({ items, intervalMs = 3200, onSelect }: Props) {
   const [start, setStart] = useState(0);
   const n = items.length;
+  // Track each card's previous slot so we can disable the transform
+  // transition for the one frame where it wraps (slot N-1 → slot 0), instead
+  // of watching it streak across the whole strip.
+  const prevSlotsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (n <= 1 || intervalMs <= 0) return;
-    const id = setInterval(() => setStart((s) => (s + 1) % n), intervalMs);
+    // Decrement: cards visually slide right (toward the spotlight at the end).
+    const id = setInterval(() => setStart((s) => (s - 1 + n) % n), intervalMs);
     return () => clearInterval(id);
   }, [n, intervalMs]);
 
+  useEffect(() => {
+    // After the frame paints, record current slots for the next wrap check.
+    items.forEach((item, idx) => {
+      prevSlotsRef.current[item.id] = (idx - start + n) % n;
+    });
+  }, [start, items, n]);
+
   if (n === 0) return null;
 
-  const slotX = (slot: number): number => {
-    let x = 0;
-    for (let i = 0; i < slot; i++) {
-      x += (i === SPOTLIGHT_SLOT ? BIG_W : SMALL_W) + GAP;
-    }
-    return x;
-  };
-  const slotY = (slot: number): number =>
-    slot === SPOTLIGHT_SLOT ? 0 : (BIG_H - SMALL_H) / 2;
-
-  const totalWidth = slotX(VISIBLE);
   const featuredIdx = (start + SPOTLIGHT_SLOT) % n;
   const featured = items[featuredIdx];
+  const sw = stripWidth();
 
   return (
     <section
@@ -52,8 +97,6 @@ export function FeaturedHero({ items, intervalMs = 4500, onSelect }: Props) {
       aria-roledescription="hero"
       aria-label={`Destacado: ${featured.title}`}
     >
-      {/* One persistent background layer per item; only the featured one is
-          opaque. Lets the browser crossfade between gradients for free. */}
       {items.map((item) => (
         <div
           key={`bg-${item.id}`}
@@ -89,28 +132,24 @@ export function FeaturedHero({ items, intervalMs = 4500, onSelect }: Props) {
       </div>
 
       <div className="hero-strip-container">
-        <div
-          className="hero-strip"
-          style={{ width: totalWidth, height: BIG_H }}
-        >
+        <div className="hero-strip" style={{ width: sw, height: MAX_H }}>
           {items.map((item, idx) => {
             const slot = (idx - start + n) % n;
-            const visible = slot < VISIBLE;
+            const visible = slot <= SPOTLIGHT_SLOT;
             const spotlight = slot === SPOTLIGHT_SLOT;
-            let x: number;
-            let y: number;
-            if (visible) {
-              x = slotX(slot);
-              y = slotY(slot);
-            } else if (slot === n - 1) {
-              // Just left: park off the left edge so it slides out instead
-              // of teleporting to the queue.
-              x = -SMALL_W - GAP;
-              y = (BIG_H - SMALL_H) / 2;
-            } else {
-              x = totalWidth + GAP;
-              y = (BIG_H - SMALL_H) / 2;
-            }
+
+            const prevSlot = prevSlotsRef.current[item.id];
+            const wrapping =
+              prevSlot !== undefined && Math.abs(slot - prevSlot) > 1;
+
+            const sz = sizeForSlot(slot);
+            const x = slotX(slot);
+            const y = slotY(slot);
+
+            // Brightness follows size so the climb toward spotlight lights up.
+            const brightness = spotlight
+              ? 1
+              : 0.35 + (sz.w / MAX_W) * 0.6;
 
             return (
               <button
@@ -118,13 +157,19 @@ export function FeaturedHero({ items, intervalMs = 4500, onSelect }: Props) {
                 type="button"
                 className={spotlight ? "hero-thumb spotlight" : "hero-thumb"}
                 style={{
-                  width: spotlight ? BIG_W : SMALL_W,
-                  height: spotlight ? BIG_H : SMALL_H,
+                  width: sz.w,
+                  height: sz.h,
                   transform: `translate(${x}px, ${y}px)`,
                   background: item.background,
                   opacity: visible ? 1 : 0,
                   pointerEvents: visible ? "auto" : "none",
-                  zIndex: spotlight ? 10 : 1,
+                  filter: `brightness(${brightness})`,
+                  zIndex: Math.round(sz.w),
+                  // On wrap, skip the transform transition so the card
+                  // teleports to slot 0 instead of streaking across.
+                  transition: wrapping
+                    ? "opacity 0.4s ease"
+                    : "transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.65s cubic-bezier(0.22, 0.61, 0.36, 1), height 0.65s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.55s ease, opacity 0.4s ease, box-shadow 0.4s ease",
                 }}
                 onClick={() => {
                   if (spotlight) onSelect?.(item);
