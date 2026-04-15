@@ -1,4 +1,10 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
+import {
+  cardStyle,
+  EFFECT_CONFIG,
+  EFFECT_LABELS,
+  type CarouselEffect,
+} from "./carouselEffects";
 
 export interface CarouselItem {
   id: string;
@@ -12,20 +18,62 @@ interface Props {
   items: CarouselItem[];
   onSelect?: (item: CarouselItem) => void;
   heading?: string;
+  /** Visual effect. Defaults to coverflow. */
+  effect?: CarouselEffect;
+  /** Render the effect switcher chips. */
+  showEffectSwitcher?: boolean;
 }
 
-/** 3D coverflow carousel. The centered card stands upright and bright,
- *  side cards rotate back on Y and dim so only the center draws the eye. */
-export function CategoryCarousel({ items, onSelect, heading }: Props) {
+/** 3D carousel with pluggable effects (coverflow / cylinder / stack). */
+export function CategoryCarousel({
+  items,
+  onSelect,
+  heading,
+  effect: effectProp = "coverflow",
+  showEffectSwitcher = false,
+}: Props) {
   const [active, setActive] = useState(Math.floor(items.length / 2));
+  const [effect, setEffect] = useState<CarouselEffect>(effectProp);
+  const cfg = EFFECT_CONFIG[effect];
   const n = items.length;
   const prev = () => setActive((i) => (i - 1 + n) % n);
   const next = () => setActive((i) => (i + 1) % n);
 
   return (
     <section className="coverflow-wrap">
-      {heading && <h3 className="coverflow-heading">{heading}</h3>}
-      <div className="coverflow" role="region" aria-label={heading || "carrusel"}>
+      {(heading || showEffectSwitcher) && (
+        <header className="coverflow-head">
+          {heading && <h3 className="coverflow-heading">{heading}</h3>}
+          {showEffectSwitcher && (
+            <div className="coverflow-effects" role="tablist">
+              {(Object.keys(EFFECT_LABELS) as CarouselEffect[]).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  role="tab"
+                  aria-selected={effect === e}
+                  className={effect === e ? "chip active" : "chip"}
+                  onClick={() => setEffect(e)}
+                >
+                  {EFFECT_LABELS[e]}
+                </button>
+              ))}
+            </div>
+          )}
+        </header>
+      )}
+
+      <div
+        className={`coverflow coverflow-${effect}`}
+        style={
+          {
+            height: cfg.height,
+            perspective: `${cfg.perspective}px`,
+          } as React.CSSProperties
+        }
+        role="region"
+        aria-label={heading || "carrusel"}
+      >
         <button
           type="button"
           className="coverflow-nav coverflow-prev"
@@ -37,24 +85,23 @@ export function CategoryCarousel({ items, onSelect, heading }: Props) {
 
         <div className="coverflow-track">
           {items.map((it, i) => {
-            // Shortest signed distance from the active card, so looping feels
-            // natural near the edges.
+            // Shortest signed distance from active, for clean looping.
             let offset = i - active;
             if (offset > n / 2) offset -= n;
             if (offset < -n / 2) offset += n;
             const abs = Math.abs(offset);
+            const hidden = abs > cfg.visibleRadius;
 
-            const style: CSSProperties = {
-              transform: [
-                `translateX(${offset * 190}px)`,
-                `translateZ(${-abs * 120}px)`,
-                `rotateY(${offset === 0 ? 0 : offset > 0 ? -28 : 28}deg)`,
-              ].join(" "),
-              zIndex: n - abs,
-              opacity: abs > 3 ? 0 : 1,
-              filter: offset === 0 ? "brightness(1)" : `brightness(${0.55 - Math.min(abs - 1, 2) * 0.1})`,
-              pointerEvents: abs > 3 ? "none" : "auto",
+            const style: React.CSSProperties = {
+              width: cfg.cardWidth,
+              height: cfg.cardHeight,
+              marginLeft: -cfg.cardWidth / 2,
+              marginTop: -cfg.cardHeight / 2,
               background: it.background,
+              opacity: hidden ? 0 : 1,
+              pointerEvents: hidden ? "none" : "auto",
+              zIndex: cfg.reverseZOrder ? n - abs : n + (offset < 0 ? -5 : -offset),
+              ...cardStyle(effect, offset),
             };
 
             return (

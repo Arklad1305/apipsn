@@ -311,6 +311,7 @@ export function App() {
           <CategoryCarousel
             heading="¡Explora por categoría! 🎮"
             items={SAMPLE_GAMES}
+            showEffectSwitcher
           />
           <FiltersBar
             filters={filters}
