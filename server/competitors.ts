@@ -15,7 +15,8 @@
 import type { Game } from "./store";
 
 const UA =
-  "Mozilla/5.0 (compatible; apipsn/1.0; market-research)";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 export type CompetitorType = "shopify" | "woocommerce" | "html" | "auto";
 
@@ -297,6 +298,10 @@ async function fetchText(url: string): Promise<string | null> {
       headers: {
         "user-agent": UA,
         accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "es-CL,es;q=0.9,en;q=0.8",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
       },
     });
     if (!r.ok) return null;
@@ -326,7 +331,7 @@ async function resolveSitemapUrls(domain: string): Promise<string[]> {
       xml.matchAll(/<sitemap[^>]*>[\s\S]*?<loc>([\s\S]*?)<\/loc>[\s\S]*?<\/sitemap>/gi)
     ).map((m) => m[1].trim());
     for (const n of nested) {
-      if (/product|sitemap-\d+|page-sitemap/i.test(n) || nested.length < 10) {
+      if (/product|sitemap[-_]\d+|page-sitemap/i.test(n) || nested.length < 10) {
         queue.push(n);
       }
     }
@@ -439,6 +444,32 @@ function extractProductFromHtml(
     const price = parseClp(ogPrice);
     if (price != null) {
       return { storeKey, title: ogTitle, url, priceClp: price, available: true };
+    }
+  }
+
+  // Fallback: HTML title + price pattern (works for Jumpseller and other platforms)
+  const titleTag = /<title[^>]*>([^<]+)<\/title>/i.exec(html)?.[1]?.trim();
+  const h1Tag = /<h1[^>]*>([^<]+)<\/h1>/i.exec(html)?.[1]?.trim();
+  const productTitle = h1Tag || titleTag;
+  if (productTitle) {
+    // Look for price in common patterns: $XX.XXX or $XX,XXX (CLP format)
+    const pricePatterns = [
+      /class=["'][^"']*(?:price|precio)[^"']*["'][^>]*>\s*\$?\s*([\d.,]+)/i,
+      /itemprop=["']price["'][^>]*>\s*\$?\s*([\d.,]+)/i,
+      /data-price=["']([\d.,]+)["']/i,
+      /\bprecio[^<]*\$\s*([\d.,]+)/i,
+    ];
+    for (const re of pricePatterns) {
+      const pm = re.exec(html);
+      if (pm) {
+        const price = parseClp(pm[1]);
+        if (price != null) {
+          const cleanTitle = productTitle
+            .replace(/\s*[-–|·].*$/, "")
+            .trim();
+          return { storeKey, title: cleanTitle, url, priceClp: price, available: true };
+        }
+      }
     }
   }
 
