@@ -67,7 +67,10 @@ async function fetchJson(url: string): Promise<any> {
       const r = await fetch(url, {
         headers: { "user-agent": UA, accept: "application/json" },
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
+      }
       return await r.json();
     } catch (e) {
       lastError = e;

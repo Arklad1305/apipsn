@@ -65,7 +65,10 @@ async function postJson(url: string, body: any, headers?: Record<string, string>
         },
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
+      }
       return await r.json();
     } catch (e) {
       lastError = e;
@@ -111,8 +114,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       `query=`,
       `hitsPerPage=${pageSize}`,
       `page=${page}`,
-      `filters=price.discounted:true`,
-      `facets=["platform"]`,
+      `facetFilters=[["price.discounted:true"]]`,
     ].join("&");
 
     let data: any;
@@ -125,12 +127,21 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
           "x-algolia-api-key": ALGOLIA_API_KEY,
         }
       );
-    } catch {
+    } catch (e) {
+      if (page === 0) {
+        throw new ProviderError("nintendo", "us", `Algolia request failed: ${(e as Error).message}`);
+      }
       break;
     }
 
     const hits: AlgoliaHit[] = data?.hits ?? [];
-    if (hits.length === 0) break;
+    if (hits.length === 0) {
+      if (page === 0) {
+        const msg = data?.message || `0 hits (nbHits=${data?.nbHits}, status=${data?.status})`;
+        throw new ProviderError("nintendo", "us", `Algolia returned no results: ${msg}`);
+      }
+      break;
+    }
 
     for (const hit of hits) {
       const id = hit.nsuid || hit.objectID;

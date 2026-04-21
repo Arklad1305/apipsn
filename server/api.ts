@@ -356,6 +356,8 @@ route("POST", "/refresh", async (req, res) => {
           totalSeen,
         });
       } catch (e) {
+        const errMsg = (e as Error).message;
+        console.error(`[${source.platform}/${source.region}] Error: ${errMsg}`);
         results.push({
           platform: source.platform,
           region: source.region,
@@ -363,7 +365,7 @@ route("POST", "/refresh", async (req, res) => {
           updated: 0,
           disappeared: 0,
           totalSeen: 0,
-          error: (e as Error).message,
+          error: errMsg,
         });
       }
     }
