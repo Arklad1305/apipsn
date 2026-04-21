@@ -23,12 +23,6 @@ const CURRENCY_MAP: Record<string, string> = {
   tr: "TRY",
 };
 
-interface RecoItem {
-  Id: string;
-  Title?: string;
-  ImageUrl?: string;
-}
-
 interface CatalogProduct {
   ProductId: string;
   LocalizedProperties?: Array<{
@@ -60,18 +54,19 @@ function toCents(price: number | undefined | null): number | null {
   return Math.round(price * 100);
 }
 
-async function fetchJson(url: string): Promise<any> {
+async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const r = await fetch(url, {
         headers: { "user-agent": UA, accept: "application/json" },
+        ...init,
       });
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
+      if (r.status === 429) {
+        await new Promise((res) => setTimeout(res, 1000 * 2 ** attempt));
+        continue;
       }
-      return await r.json();
+      return r;
     } catch (e) {
       lastError = e;
       await new Promise((res) => setTimeout(res, 500 * 2 ** attempt));
@@ -80,17 +75,68 @@ async function fetchJson(url: string): Promise<any> {
   throw lastError;
 }
 
+async function fetchJson(url: string): Promise<any> {
+  const r = await fetchWithRetry(url);
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
+// Try multiple endpoints to get deal product IDs.
+// Primary: reco-public (Microsoft Recommendations API)
+// Fallback: catalog.gamepass.com/sigls (Game Pass signals — contains deal lists)
 async function fetchDealIds(
   market: string,
   language: string
 ): Promise<string[]> {
-  const url =
-    `https://reco-public.rec.mp.microsoft.com/channels/Reco/V8.0/Lists/Computed/Deal` +
-    `?Market=${market}&Language=${language}&ItemTypes=Game` +
-    `&deviceFamily=Windows.Xbox&count=2000&skipitems=0`;
-  const data = await fetchJson(url);
-  const items: RecoItem[] = data?.Items ?? [];
-  return items.map((it) => it.Id).filter(Boolean);
+  const errors: string[] = [];
+
+  // Attempt 1: Reco API
+  try {
+    const url =
+      `https://reco-public.rec.mp.microsoft.com/channels/Reco/V8.0/Lists/Computed/Deal` +
+      `?Market=${market}&Language=${language}&ItemTypes=Game` +
+      `&deviceFamily=Windows.Xbox&count=2000&skipitems=0`;
+    const data = await fetchJson(url);
+    const items: Array<{ Id: string }> = data?.Items ?? [];
+    const ids = items.map((it) => it.Id).filter(Boolean);
+    if (ids.length > 0) return ids;
+  } catch (e) {
+    errors.push(`Reco: ${(e as Error).message}`);
+  }
+
+  // Attempt 2: Xbox catalog deals via sigls (signal lists)
+  // Deal list ID known from Xbox website source
+  const DEAL_LIST_ID = "f6f1f99f-9b49-4ccd-b3bf-4d9767a77f5e";
+  try {
+    const url =
+      `https://catalog.gamepass.com/sigls/v2` +
+      `?id=${DEAL_LIST_ID}&language=${language.split("-")[0]}&market=${market}`;
+    const data = await fetchJson(url);
+    const items: Array<{ id?: string }> = Array.isArray(data) ? data : [];
+    const ids = items.map((it) => it.id).filter((id): id is string => !!id);
+    if (ids.length > 0) return ids;
+  } catch (e) {
+    errors.push(`Sigls: ${(e as Error).message}`);
+  }
+
+  // Attempt 3: Search displaycatalog for games with deals
+  try {
+    const url =
+      `https://displaycatalog.mp.microsoft.com/v7.0/products/search` +
+      `?query=deal&market=${market}&languages=${language}` +
+      `&fieldsTemplate=details&top=200`;
+    const data = await fetchJson(url);
+    const products: CatalogProduct[] = data?.Products ?? [];
+    const ids = products.map((p) => p.ProductId).filter(Boolean);
+    if (ids.length > 0) return ids;
+  } catch (e) {
+    errors.push(`Search: ${(e as Error).message}`);
+  }
+
+  throw new Error(`All Xbox deal endpoints failed: ${errors.join(" | ")}`);
 }
 
 async function fetchProductDetails(

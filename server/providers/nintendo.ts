@@ -114,14 +114,14 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       `query=`,
       `hitsPerPage=${pageSize}`,
       `page=${page}`,
-      `facetFilters=[["price.discounted:true"]]`,
     ].join("&");
+    const body = { params };
 
     let data: any;
     try {
       data = await postJson(
         `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/${ALGOLIA_INDEX}/query`,
-        { params },
+        body,
         {
           "x-algolia-application-id": ALGOLIA_APP_ID,
           "x-algolia-api-key": ALGOLIA_API_KEY,
@@ -137,7 +137,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
     const hits: AlgoliaHit[] = data?.hits ?? [];
     if (hits.length === 0) {
       if (page === 0) {
-        const msg = data?.message || `0 hits (nbHits=${data?.nbHits}, status=${data?.status})`;
+        const msg = data?.message || `0 hits (nbHits=${data?.nbHits})`;
         throw new ProviderError("nintendo", "us", `Algolia returned no results: ${msg}`);
       }
       break;
@@ -149,11 +149,10 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       if (!name || !id) continue;
 
       const price = hit.price;
-      if (!price) continue;
+      if (!price || !price.salePrice) continue;
 
       const regPrice = price.regPrice;
       const salePrice = price.salePrice;
-      if (regPrice == null && salePrice == null) continue;
 
       const originalCents = regPrice != null ? Math.round(regPrice * 100) : null;
       const discountedCents =

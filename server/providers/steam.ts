@@ -110,12 +110,21 @@ async function* fetchSteamDeals(
     let data: any;
     try {
       data = await fetchJson(url);
-    } catch {
+    } catch (e) {
+      if (page === 0) {
+        throw new ProviderError("steam", region, `Steam search failed: ${(e as Error).message}`);
+      }
       break;
     }
 
     const html: string = data?.results_html ?? "";
-    if (!html || html.trim() === "") break;
+    if (!html || html.trim() === "") {
+      if (page === 0) {
+        const total = data?.total_count ?? "?";
+        throw new ProviderError("steam", region, `Steam returned empty HTML (total_count=${total})`);
+      }
+      break;
+    }
 
     // Split HTML into individual result rows by anchor boundaries
     const anchors: { appId: string; block: string }[] = [];
