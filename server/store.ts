@@ -103,7 +103,7 @@ const DEFAULT_SOURCES: ProviderSource[] = [
   { platform: "xbox", region: "br", enabled: false },
   { platform: "xbox", region: "tr", enabled: false },
   { platform: "nintendo", region: "us", enabled: true },
-  { platform: "nintendo", region: "jp", enabled: true },
+  { platform: "nintendo", region: "jp", enabled: false },
   { platform: "steam", region: "us", enabled: true },
   { platform: "steam", region: "br", enabled: true },
   { platform: "steam", region: "tr", enabled: true },
