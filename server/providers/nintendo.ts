@@ -107,9 +107,8 @@ interface AlgoliaHit {
 // Try multiple Algolia filter strategies; Nintendo doesn't document which
 // attributes are configured as filterable, so we cascade until one works.
 const FILTER_STRATEGIES = [
-  `facetFilters=${encodeURIComponent('[["topLevelFilters:Deals"]]')}`,
-  `facetFilters=${encodeURIComponent('[["filterShops:On Sale"]]')}`,
-  `facetFilters=${encodeURIComponent('[["availability:Sale"]]')}`,
+  `facetFilters=${encodeURIComponent('[["generalFilters:Deals"]]')}`,
+  `facetFilters=${encodeURIComponent('[["generalFilters:On sale"]]')}`,
   `numericFilters=${encodeURIComponent('["price.percentOff>0"]')}`,
   "", // no filter — fetch everything and filter in code
 ];
