@@ -33,11 +33,14 @@ export const psnProvider: Provider = {
       const game = normalizeProduct(raw, now);
       if (!game) continue;
 
+      const regionPath = locale.toLowerCase();
+      const storeUrl = `https://store.playstation.com/${regionPath}/product/${game.id}`;
+
       yield {
         id: game.id,
         name: game.name,
         imageUrl: game.imageUrl,
-        storeUrl: game.storeUrl,
+        storeUrl,
         hardwarePlatforms: game.platforms,
         currency,
         priceOriginalCents: game.priceOriginalCents,

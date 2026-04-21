@@ -98,6 +98,7 @@ const DEFAULT_SETTINGS: PricingSettings = {
 
 const DEFAULT_SOURCES: ProviderSource[] = [
   { platform: "psn", region: "us", enabled: true, categoryId: "" },
+  { platform: "psn", region: "br", enabled: true, categoryId: "3f772501-f6f8-49b7-abac-874a88ca4897" },
   { platform: "xbox", region: "us", enabled: false },
   { platform: "xbox", region: "br", enabled: false },
   { platform: "xbox", region: "tr", enabled: false },
