@@ -158,17 +158,26 @@ function migrateSources(
   sources: ProviderSource[] | undefined,
   psn: PsnConfig
 ): ProviderSource[] {
-  if (sources && sources.length > 0) return sources;
-  const defaults = [...DEFAULT_SOURCES];
-  // Carry over existing PSN category ID
-  if (psn.dealsCategoryId) {
-    const psnUs = defaults.find((s) => s.platform === "psn" && s.region === "us");
-    if (psnUs) {
-      psnUs.categoryId = psn.dealsCategoryId;
-      psnUs.enabled = true;
+  const existing = sources && sources.length > 0 ? [...sources] : [];
+  const existingKeys = new Set(existing.map((s) => `${s.platform}:${s.region}`));
+
+  // Always merge missing sources from defaults
+  for (const def of DEFAULT_SOURCES) {
+    const key = `${def.platform}:${def.region}`;
+    if (!existingKeys.has(key)) {
+      existing.push({ ...def });
     }
   }
-  return defaults;
+
+  // Carry over existing PSN category ID if sources were empty
+  if ((!sources || sources.length === 0) && psn.dealsCategoryId) {
+    const psnUs = existing.find((s) => s.platform === "psn" && s.region === "us");
+    if (psnUs && !psnUs.categoryId) {
+      psnUs.categoryId = psn.dealsCategoryId;
+    }
+  }
+
+  return existing;
 }
 
 function load(): DbShape {
@@ -207,6 +216,9 @@ function load(): DbShape {
 
 let db: DbShape = load();
 let saveTimer: NodeJS.Timeout | null = null;
+
+// Persist migrated data on first load so new sources/fields are saved
+try { ensureDir(); fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); } catch { /* ignore */ }
 
 function persist() {
   ensureDir();
