@@ -30,6 +30,13 @@ import {
   type CompetitorMatch,
 } from "./competitors";
 import { fetchProductDetail } from "./psn-product";
+import {
+  getProvider,
+  PLATFORM_LABELS,
+  PLATFORM_REGIONS,
+  ProviderError,
+} from "./providers/index";
+import type { Platform, ProviderSource } from "./providers/types";
 
 /** Extract a PSN product id from a store URL. Accepts both en-US and other
  *  locales, and tolerates trailing segments / query strings. */
@@ -129,18 +136,31 @@ async function readBody(req: IncomingMessage): Promise<any> {
   }
 }
 
+function gameDbKey(g: Game): string {
+  return `${g.platform}:${g.region}:${g.id}`;
+}
+
 function toGameOut(g: Game, cfgPricing = store.getSettings()) {
-  const sale = computeSalePrices(g.priceDiscountedCents, cfgPricing);
-  const matches = store.getCompetitorMatches(g.id);
+  const sale = computeSalePrices(g.priceDiscountedCents, cfgPricing, g.currency || "USD");
+  const dbKey = gameDbKey(g);
+  const matches = store.getCompetitorMatches(dbKey) || store.getCompetitorMatches(g.id);
   const marketMin = matches.length
     ? Math.min(...matches.map((m) => m.priceClp))
     : null;
   return {
     id: g.id,
+    dbKey,
+    platform: g.platform || "psn",
+    region: g.region || "us",
+    currency: g.currency || "USD",
     name: g.name,
     imageUrl: g.imageUrl,
     storeUrl: g.storeUrl,
     platforms: g.platforms,
+    priceOriginal:
+      g.priceOriginalCents != null ? g.priceOriginalCents / 100 : null,
+    priceDiscounted:
+      g.priceDiscountedCents != null ? g.priceDiscountedCents / 100 : null,
     priceOriginalUsd:
       g.priceOriginalCents != null ? g.priceOriginalCents / 100 : null,
     priceDiscountedUsd:
@@ -171,15 +191,21 @@ route("GET", "/games", async (req, res) => {
   const hidePublished = url.searchParams.get("hide_published") === "true";
   const onlyWithMarket = url.searchParams.get("only_with_market") === "true";
   const includeInactive = url.searchParams.get("include_inactive") === "true";
+  const platformFilter = url.searchParams.get("platform") || "";
   const sort = url.searchParams.get("sort") || "discount";
 
   let games = store.listGames();
   if (!includeInactive) games = games.filter((g) => g.active);
+  if (platformFilter) games = games.filter((g) => (g.platform || "psn") === platformFilter);
   if (minDiscount > 0) games = games.filter((g) => g.discountPercent >= minDiscount);
   if (onlySelected) games = games.filter((g) => g.selected);
   if (hidePublished) games = games.filter((g) => !g.published);
-  if (onlyWithMarket)
-    games = games.filter((g) => store.getCompetitorMatches(g.id).length > 0);
+  if (onlyWithMarket) {
+    games = games.filter((g) => {
+      const key = gameDbKey(g);
+      return (store.getCompetitorMatches(key) || store.getCompetitorMatches(g.id)).length > 0;
+    });
+  }
   if (search) games = games.filter((g) => g.name.toLowerCase().includes(search));
 
   if (sort === "price") games.sort((a, b) => (a.priceDiscountedCents ?? 0) - (b.priceDiscountedCents ?? 0));
@@ -199,7 +225,7 @@ route("GET", "/games", async (req, res) => {
   sendJson(res, 200, games.map((g) => toGameOut(g, cfg)));
 });
 
-// PATCH /games/:id
+// PATCH /games/:id — id can be a composite dbKey (psn:us:UPXXXX-...) or a bare PSN id
 route("PATCH", "/games/:id", async (req, res, params) => {
   const body = (await readBody(req)) as Partial<
     Pick<Game, "selected" | "published" | "notes" | "youtubeUrl">
@@ -209,65 +235,162 @@ route("PATCH", "/games/:id", async (req, res, params) => {
   if (typeof body.published === "boolean") patch.published = body.published;
   if (typeof body.notes === "string") patch.notes = body.notes;
   if (typeof body.youtubeUrl === "string") patch.youtubeUrl = body.youtubeUrl.trim();
-  const updated = store.patchGame(params.id, patch);
+  const id = decodeURIComponent(params.id);
+  let updated = store.patchGame(id, patch);
+  if (!updated) {
+    // Try legacy key (bare PSN id)
+    updated = store.patchGame(`psn:us:${id}`, patch);
+  }
   if (!updated) return sendJson(res, 404, { error: "not_found" });
   sendJson(res, 200, toGameOut(updated));
 });
 
-// POST /refresh
-route("POST", "/refresh", async (_req, res) => {
+// POST /refresh — multi-platform refresh. Optional body: { platform?, region? }
+// With no body, refreshes all enabled sources. With platform/region, refreshes
+// only that specific source.
+route("POST", "/refresh", async (req, res) => {
   try {
-    const cfg = store.getPsn();
-    const seen = new Set<string>();
-    let newCount = 0;
-    let updated = 0;
-    let totalSeen = 0;
-    let filteredAddOns = 0;
-    const nowIso = new Date().toISOString();
+    const body = await readBody(req);
+    const targetPlatform = body.platform as Platform | undefined;
+    const targetRegion = body.region as string | undefined;
 
-    for await (const raw of iterCategoryProducts(cfg)) {
-      totalSeen++;
-      if (!cfg.includeAddOns && !isFullGameProduct(raw)) {
-        filteredAddOns++;
-        continue;
-      }
-      const normalized = normalizeProduct(raw, nowIso);
-      if (!normalized) continue;
-      seen.add(normalized.id);
-      const existing = store.getGame(normalized.id);
-      if (!existing) {
-        store.upsertGame(normalized);
-        newCount++;
-      } else {
-        store.upsertGame({
-          ...existing,
-          name: normalized.name || existing.name,
-          imageUrl: normalized.imageUrl || existing.imageUrl,
-          storeUrl: normalized.storeUrl || existing.storeUrl,
-          platforms: normalized.platforms,
-          priceOriginalCents: normalized.priceOriginalCents,
-          priceDiscountedCents: normalized.priceDiscountedCents,
-          discountPercent: normalized.discountPercent,
-          discountEndAt: normalized.discountEndAt,
-          active: true,
-          lastSeenAt: nowIso,
-          updatedAt: nowIso,
+    const sources = store.getSources().filter((s) => {
+      if (!s.enabled) return false;
+      if (targetPlatform && s.platform !== targetPlatform) return false;
+      if (targetRegion && s.region !== targetRegion) return false;
+      return true;
+    });
+
+    if (sources.length === 0 && !targetPlatform) {
+      // Fallback: legacy PSN-only refresh for backward compatibility
+      return await legacyPsnRefresh(res);
+    }
+
+    const nowIso = new Date().toISOString();
+    const results: Array<{
+      platform: string;
+      region: string;
+      newCount: number;
+      updated: number;
+      disappeared: number;
+      totalSeen: number;
+      error?: string;
+    }> = [];
+    let allWatchlistAlerts: WatchlistAlert[] = [];
+
+    for (const source of sources) {
+      try {
+        const provider = getProvider(source.platform);
+        const seenKeys = new Set<string>();
+        let newCount = 0;
+        let updated = 0;
+        let totalSeen = 0;
+
+        // For PSN, inject the categoryId from the PSN config if not on source
+        const effSource = { ...source };
+        if (source.platform === "psn" && !source.categoryId) {
+          effSource.categoryId = store.getPsn().dealsCategoryId;
+        }
+
+        for await (const deal of provider.fetchDeals(effSource)) {
+          totalSeen++;
+          const dbKey = `${source.platform}:${source.region}:${deal.id}`;
+          seenKeys.add(dbKey);
+          const existing = store.getGameByComposite(source.platform, source.region, deal.id);
+          if (!existing) {
+            store.upsertGame({
+              id: deal.id,
+              platform: source.platform,
+              region: source.region,
+              name: deal.name,
+              imageUrl: deal.imageUrl,
+              storeUrl: deal.storeUrl,
+              platforms: deal.hardwarePlatforms,
+              currency: deal.currency,
+              priceOriginalCents: deal.priceOriginalCents,
+              priceDiscountedCents: deal.priceDiscountedCents,
+              discountPercent: deal.discountPercent,
+              discountEndAt: deal.discountEndAt,
+              selected: false,
+              published: false,
+              notes: "",
+              youtubeUrl: "",
+              active: true,
+              firstSeenAt: nowIso,
+              lastSeenAt: nowIso,
+              updatedAt: nowIso,
+            });
+            newCount++;
+          } else {
+            store.upsertGame({
+              ...existing,
+              name: deal.name || existing.name,
+              imageUrl: deal.imageUrl || existing.imageUrl,
+              storeUrl: deal.storeUrl || existing.storeUrl,
+              platforms: deal.hardwarePlatforms,
+              currency: deal.currency,
+              priceOriginalCents: deal.priceOriginalCents,
+              priceDiscountedCents: deal.priceDiscountedCents,
+              discountPercent: deal.discountPercent,
+              discountEndAt: deal.discountEndAt,
+              active: true,
+              lastSeenAt: nowIso,
+              updatedAt: nowIso,
+            });
+            updated++;
+          }
+        }
+
+        const disappeared = store.markInactiveIfMissing(
+          seenKeys,
+          source.platform,
+          source.region
+        );
+
+        results.push({
+          platform: source.platform,
+          region: source.region,
+          newCount,
+          updated,
+          disappeared,
+          totalSeen,
         });
-        updated++;
+      } catch (e) {
+        results.push({
+          platform: source.platform,
+          region: source.region,
+          newCount: 0,
+          updated: 0,
+          disappeared: 0,
+          totalSeen: 0,
+          error: (e as Error).message,
+        });
       }
     }
-    const disappeared = store.markInactiveIfMissing(seen);
-    // Recompute competitor matches against the refreshed catalogue.
+
     recomputeMatches();
-    const watchlistAlerts = diffWatchlist(seen, nowIso);
+    // Diff watchlist for PSN sources
+    const psnSeenIds = new Set<string>();
+    for (const g of store.listGames()) {
+      if (g.active && g.platform === "psn") psnSeenIds.add(g.id);
+    }
+    allWatchlistAlerts = diffWatchlist(psnSeenIds, nowIso);
+
+    const totalNew = results.reduce((s, r) => s + r.newCount, 0);
+    const totalUpdated = results.reduce((s, r) => s + r.updated, 0);
+    const totalDisappeared = results.reduce((s, r) => s + r.disappeared, 0);
+    const totalSeen = results.reduce((s, r) => s + r.totalSeen, 0);
+    const totalKept = results.reduce((s, r) => s + r.totalSeen - (r.error ? r.totalSeen : 0), 0);
+
     sendJson(res, 200, {
-      new: newCount,
-      updated,
-      disappeared,
+      new: totalNew,
+      updated: totalUpdated,
+      disappeared: totalDisappeared,
       totalSeen,
-      kept: seen.size,
-      filteredAddOns,
-      watchlistAlerts,
+      kept: totalKept,
+      filteredAddOns: 0,
+      watchlistAlerts: allWatchlistAlerts,
+      sourceResults: results,
     });
   } catch (e) {
     if (e instanceof PersistedQueryNotFoundError) {
@@ -280,18 +403,78 @@ route("POST", "/refresh", async (_req, res) => {
           "actualiza el hash en Ajustes.",
       });
     }
-    if (e instanceof PsnApiError) {
+    if (e instanceof PsnApiError || e instanceof ProviderError) {
       return sendJson(res, 502, {
-        error: "psn_api_error",
+        error: "provider_error",
         message: (e as Error).message,
         hint:
           "Si esto corre en una sandbox (Bolt/StackBlitz) la IP puede estar " +
-          "bloqueada por PSN. Probá desde tu máquina o servidor.",
+          "bloqueada. Probá desde tu máquina o servidor.",
       });
     }
     sendJson(res, 500, { error: "internal", message: (e as Error).message });
   }
 });
+
+async function legacyPsnRefresh(res: ServerResponse) {
+  const cfg = store.getPsn();
+  const seenKeys = new Set<string>();
+  let newCount = 0;
+  let updated = 0;
+  let totalSeen = 0;
+  let filteredAddOns = 0;
+  const nowIso = new Date().toISOString();
+
+  for await (const raw of iterCategoryProducts(cfg)) {
+    totalSeen++;
+    if (!cfg.includeAddOns && !isFullGameProduct(raw)) {
+      filteredAddOns++;
+      continue;
+    }
+    const normalized = normalizeProduct(raw, nowIso);
+    if (!normalized) continue;
+    normalized.platform = "psn";
+    normalized.region = "us";
+    normalized.currency = "USD";
+    const dbKey = `psn:us:${normalized.id}`;
+    seenKeys.add(dbKey);
+    const existing = store.getGameByComposite("psn", "us", normalized.id);
+    if (!existing) {
+      store.upsertGame(normalized);
+      newCount++;
+    } else {
+      store.upsertGame({
+        ...existing,
+        name: normalized.name || existing.name,
+        imageUrl: normalized.imageUrl || existing.imageUrl,
+        storeUrl: normalized.storeUrl || existing.storeUrl,
+        platforms: normalized.platforms,
+        priceOriginalCents: normalized.priceOriginalCents,
+        priceDiscountedCents: normalized.priceDiscountedCents,
+        discountPercent: normalized.discountPercent,
+        discountEndAt: normalized.discountEndAt,
+        active: true,
+        lastSeenAt: nowIso,
+        updatedAt: nowIso,
+      });
+      updated++;
+    }
+  }
+  const disappeared = store.markInactiveIfMissing(seenKeys, "psn", "us");
+  recomputeMatches();
+  const watchlistAlerts = diffWatchlist(new Set(
+    [...seenKeys].map(k => k.replace(/^psn:us:/, ""))
+  ), nowIso);
+  sendJson(res, 200, {
+    new: newCount,
+    updated,
+    disappeared,
+    totalSeen,
+    kept: seenKeys.size,
+    filteredAddOns,
+    watchlistAlerts,
+  });
+}
 
 // GET /games/export.csv
 route("GET", "/games/export.csv", async (req, res) => {
@@ -358,6 +541,7 @@ route("GET", "/settings", async (_req, res) => {
   sendJson(res, 200, {
     pricing: store.getSettings(),
     psn: store.getPsn(),
+    sources: store.getSources(),
   });
 });
 
@@ -366,10 +550,17 @@ route("PUT", "/settings", async (req, res) => {
   const body = (await readBody(req)) as {
     pricing?: Partial<ReturnType<typeof store.getSettings>>;
     psn?: Partial<ReturnType<typeof store.getPsn>>;
+    sources?: ProviderSource[];
   };
   const pricing = body.pricing ? store.updateSettings(body.pricing) : store.getSettings();
   const psn = body.psn ? store.updatePsn(body.psn) : store.getPsn();
-  sendJson(res, 200, { pricing, psn });
+  if (body.sources) store.setSources(body.sources);
+  sendJson(res, 200, { pricing, psn, sources: store.getSources() });
+});
+
+// GET /platforms — static metadata about available platforms + regions
+route("GET", "/platforms", async (_req, res) => {
+  sendJson(res, 200, { labels: PLATFORM_LABELS, regions: PLATFORM_REGIONS });
 });
 
 // POST /mock/clear — remove all games

@@ -1,4 +1,5 @@
-import type { Filters } from "../types";
+import type { Filters, Platform } from "../types";
+import { PLATFORM_LABELS } from "../types";
 
 interface Props {
   filters: Filters;
@@ -6,9 +7,35 @@ interface Props {
   count: number;
 }
 
+const PLATFORMS: { value: Platform | ""; label: string }[] = [
+  { value: "", label: "Todas" },
+  { value: "psn", label: "PlayStation" },
+  { value: "xbox", label: "Xbox" },
+  { value: "nintendo", label: "Nintendo" },
+  { value: "steam", label: "Steam" },
+];
+
 export function FiltersBar({ filters, setFilters, count }: Props) {
   return (
     <div className="filters">
+      <div className="platform-chips" role="tablist">
+        {PLATFORMS.map((p) => (
+          <button
+            key={p.value}
+            type="button"
+            role="tab"
+            aria-selected={filters.platform === p.value}
+            className={
+              filters.platform === p.value ? "chip active" : "chip"
+            }
+            onClick={() =>
+              setFilters((f) => ({ ...f, platform: p.value as Platform | "" }))
+            }
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <input
         type="search"
         placeholder="Buscar por nombre…"

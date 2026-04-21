@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { patchGame } from "../api";
 import type { GameOut } from "../types";
+import { CURRENCY_SYMBOLS, PLATFORM_ICONS } from "../types";
 import { animatePopIn, animateRowsIn } from "../anim";
 
 interface Props {
@@ -13,7 +14,12 @@ interface Props {
 
 const fmtCLP = (n: number | null) =>
   n == null ? "" : "$" + Math.round(n).toLocaleString("es-CL");
-const fmtUSD = (n: number | null) => (n == null ? "" : "$" + n.toFixed(2));
+const fmtPrice = (n: number | null, currency = "USD") => {
+  if (n == null) return "";
+  const sym = CURRENCY_SYMBOLS[currency] || "$";
+  if (currency === "JPY") return sym + Math.round(n).toLocaleString();
+  return sym + n.toFixed(2);
+};
 
 interface OpenPopover {
   gameId: string;
@@ -45,7 +51,7 @@ export function GamesTable({
     field: "selected" | "published",
     value: boolean
   ) => {
-    const updated = await patchGame(g.id, { [field]: value });
+    const updated = await patchGame(g.dbKey || g.id, { [field]: value });
     onGameUpdated(updated);
   };
 
@@ -66,9 +72,10 @@ export function GamesTable({
           <thead>
             <tr>
               <th></th>
+              <th></th>
               <th>Juego</th>
-              <th>Plataforma</th>
-              <th>USD</th>
+              <th>Plat.</th>
+              <th>Precio</th>
               <th>Dcto</th>
               <th>Costo CLP</th>
               <th>Primaria 1</th>
@@ -84,14 +91,23 @@ export function GamesTable({
           <tbody ref={tbodyRef}>
             {games.map((g) => {
               const marketClass = marketColor(g);
+              const cur = g.currency || "USD";
+              const platformIcon = PLATFORM_ICONS[g.platform] || g.platform?.toUpperCase();
+              const regionLabel = g.region?.toUpperCase() || "";
               return (
-                <tr key={g.id} className={g.published ? "published" : ""}>
+                <tr key={g.dbKey || g.id} className={g.published ? "published" : ""}>
                   <td>
                     {g.imageUrl ? (
                       <img className="thumb" src={g.imageUrl} alt="" loading="lazy" />
                     ) : (
                       <div className="thumb placeholder" />
                     )}
+                  </td>
+                  <td>
+                    <span className={`platform-badge platform-${g.platform || "psn"}`} title={`${g.platform?.toUpperCase()} ${regionLabel}`}>
+                      {platformIcon}
+                      {regionLabel ? <span className="region-tag">{regionLabel}</span> : null}
+                    </span>
                   </td>
                   <td className="name">
                     {g.storeUrl ? (
@@ -105,11 +121,11 @@ export function GamesTable({
                   </td>
                   <td>{g.platforms}</td>
                   <td>
-                    {g.priceOriginalUsd != null &&
-                      g.priceOriginalUsd !== g.priceDiscountedUsd && (
-                        <s className="muted">{fmtUSD(g.priceOriginalUsd)}</s>
+                    {g.priceOriginal != null &&
+                      g.priceOriginal !== g.priceDiscounted && (
+                        <s className="muted">{fmtPrice(g.priceOriginal, cur)}</s>
                       )}{" "}
-                    <strong>{fmtUSD(g.priceDiscountedUsd)}</strong>
+                    <strong>{fmtPrice(g.priceDiscounted, cur)}</strong>
                   </td>
                   <td>
                     {g.discountPercent > 0 ? (

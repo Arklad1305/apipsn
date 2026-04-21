@@ -345,6 +345,88 @@ input[type="checkbox"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* Platform chips in filter bar */
+.platform-chips {
+  display: flex;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+/* Platform badges in table rows */
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.platform-badge .region-tag {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.platform-psn {
+  background: rgba(0, 68, 215, 0.2);
+  color: #5b9fff;
+}
+
+.platform-xbox {
+  background: rgba(16, 124, 16, 0.2);
+  color: #6dd36d;
+}
+
+.platform-nintendo {
+  background: rgba(230, 0, 18, 0.2);
+  color: #ff6b70;
+}
+
+.platform-steam {
+  background: rgba(27, 40, 56, 0.5);
+  color: #c6d4df;
+}
+
+/* Sources grid in settings */
+.sources-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 32px 120px 60px 50px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.source-row:not(.source-head):hover {
+  background: var(--panel-hover);
+}
+
+.source-head {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.source-cat-input {
+  width: 100%;
+  font-size: 12px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);

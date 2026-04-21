@@ -5,8 +5,11 @@ import type {
   CompetitorStatus,
   Filters,
   GameOut,
+  Platform,
+  PlatformMeta,
   PricingSettings,
   ProductDetail,
+  ProviderSource,
   PsnConfig,
   RefreshSummary,
   SettingsResponse,
@@ -42,22 +45,29 @@ export function fetchGames(f: Filters): Promise<GameOut[]> {
   if (f.onlySelected) q.set("only_selected", "true");
   if (f.hidePublished) q.set("hide_published", "true");
   if (f.onlyWithMarket) q.set("only_with_market", "true");
+  if (f.platform) q.set("platform", f.platform);
   q.set("sort", f.sort);
   return req<GameOut[]>(`/games?${q.toString()}`);
 }
 
 export function patchGame(
-  id: string,
+  dbKey: string,
   patch: Partial<Pick<GameOut, "selected" | "published" | "notes" | "youtubeUrl">>
 ): Promise<GameOut> {
-  return req<GameOut>(`/games/${encodeURIComponent(id)}`, {
+  return req<GameOut>(`/games/${encodeURIComponent(dbKey)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
 }
 
-export function refresh(): Promise<RefreshSummary> {
-  return req<RefreshSummary>(`/refresh`, { method: "POST" });
+export function refresh(platform?: Platform, region?: string): Promise<RefreshSummary> {
+  const body: Record<string, string> = {};
+  if (platform) body.platform = platform;
+  if (region) body.region = region;
+  return req<RefreshSummary>(`/refresh`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function getSettings(): Promise<SettingsResponse> {
@@ -65,12 +75,20 @@ export function getSettings(): Promise<SettingsResponse> {
 }
 
 export function putSettings(
-  patch: { pricing?: Partial<PricingSettings>; psn?: Partial<PsnConfig> }
+  patch: {
+    pricing?: Partial<PricingSettings>;
+    psn?: Partial<PsnConfig>;
+    sources?: ProviderSource[];
+  }
 ): Promise<SettingsResponse> {
   return req<SettingsResponse>(`/settings`, {
     method: "PUT",
     body: JSON.stringify(patch),
   });
+}
+
+export function getPlatforms(): Promise<PlatformMeta> {
+  return req<PlatformMeta>(`/platforms`);
 }
 
 export function clearAll(): Promise<{ cleared: number }> {
@@ -94,7 +112,6 @@ export function refreshCompetitors(): Promise<CompetitorRefreshResult> {
   return req<CompetitorRefreshResult>(`/competitors/refresh`, { method: "POST" });
 }
 
-/** Returns null when the detail has not been cached yet. */
 export async function getProductDetail(id: string): Promise<ProductDetail | null> {
   const r = await fetch(`${API}/games/${encodeURIComponent(id)}/detail`);
   if (r.status === 204) return null;

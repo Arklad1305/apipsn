@@ -10,6 +10,7 @@ import type {
   CompetitorProduct,
 } from "./competitors";
 import type { ProductDetail } from "./psn-product";
+import type { Platform, ProviderSource } from "./providers/types";
 
 /** A game the user is tracking even when it's not in the current Weekly Deals
  *  category. Every /refresh diffs these against the scrape and reports
@@ -28,19 +29,20 @@ export interface WatchedGame {
 
 export interface Game {
   id: string;
+  platform: Platform;
+  region: string;
   name: string;
   imageUrl: string | null;
   storeUrl: string | null;
   platforms: string;
-  priceOriginalCents: number | null; // USD cents
-  priceDiscountedCents: number | null; // USD cents
+  currency: string;
+  priceOriginalCents: number | null;
+  priceDiscountedCents: number | null;
   discountPercent: number;
-  discountEndAt: string | null; // ISO date
+  discountEndAt: string | null;
   selected: boolean;
   published: boolean;
   notes: string;
-  /** Optional YouTube URL the user pastes manually. Used as a fallback for the
-   *  ficha video when PSN doesn't expose a PROMO/VIDEO asset. */
   youtubeUrl: string;
   active: boolean;
   firstSeenAt: string;
@@ -50,6 +52,9 @@ export interface Game {
 
 export interface PricingSettings {
   usdToClp: number;
+  brlToClp: number;
+  tryToClp: number;
+  jpyToClp: number;
   purchaseFeePct: number;
   primaria1Mult: number;
   primaria2Mult: number;
@@ -70,6 +75,7 @@ interface DbShape {
   games: Record<string, Game>;
   settings: PricingSettings;
   psn: PsnConfig;
+  sources: ProviderSource[];
   competitors: CompetitorConfig[];
   competitorProducts: Record<string, CompetitorProduct[]>;
   competitorMatches: Record<string, CompetitorMatch[]>;
@@ -80,12 +86,27 @@ interface DbShape {
 
 const DEFAULT_SETTINGS: PricingSettings = {
   usdToClp: 970,
+  brlToClp: 170,
+  tryToClp: 28,
+  jpyToClp: 6.5,
   purchaseFeePct: 0.05,
   primaria1Mult: 1.8,
   primaria2Mult: 1.6,
   secundariaMult: 1.1,
   roundTo: 500,
 };
+
+const DEFAULT_SOURCES: ProviderSource[] = [
+  { platform: "psn", region: "us", enabled: true, categoryId: "" },
+  { platform: "xbox", region: "us", enabled: false },
+  { platform: "xbox", region: "br", enabled: false },
+  { platform: "xbox", region: "tr", enabled: false },
+  { platform: "nintendo", region: "us", enabled: false },
+  { platform: "nintendo", region: "jp", enabled: false },
+  { platform: "steam", region: "us", enabled: false },
+  { platform: "steam", region: "br", enabled: false },
+  { platform: "steam", region: "tr", enabled: false },
+];
 
 const DEFAULT_COMPETITORS: CompetitorConfig[] = [
   { key: "cjm", label: "CJM Digitales", domain: "cjmdigitales.cl", type: "shopify", enabled: true },
@@ -114,19 +135,52 @@ function ensureDir() {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+function migrateGames(games: Record<string, Game>): Record<string, Game> {
+  const migrated: Record<string, Game> = {};
+  for (const [key, g] of Object.entries(games)) {
+    if (typeof g.youtubeUrl !== "string") g.youtubeUrl = "";
+    if (!g.platform) g.platform = "psn";
+    if (!g.region) g.region = "us";
+    if (!g.currency) g.currency = "USD";
+    // Re-key old PSN entries to composite key
+    const compositeKey = `${g.platform}:${g.region}:${g.id}`;
+    if (key === g.id && key !== compositeKey) {
+      migrated[compositeKey] = g;
+    } else {
+      migrated[key] = g;
+    }
+  }
+  return migrated;
+}
+
+function migrateSources(
+  sources: ProviderSource[] | undefined,
+  psn: PsnConfig
+): ProviderSource[] {
+  if (sources && sources.length > 0) return sources;
+  const defaults = [...DEFAULT_SOURCES];
+  // Carry over existing PSN category ID
+  if (psn.dealsCategoryId) {
+    const psnUs = defaults.find((s) => s.platform === "psn" && s.region === "us");
+    if (psnUs) {
+      psnUs.categoryId = psn.dealsCategoryId;
+      psnUs.enabled = true;
+    }
+  }
+  return defaults;
+}
+
 function load(): DbShape {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DbShape>;
-    const games = parsed.games ?? {};
-    // Back-fill youtubeUrl on games persisted before the field existed.
-    for (const g of Object.values(games)) {
-      if (typeof (g as Game).youtubeUrl !== "string") (g as Game).youtubeUrl = "";
-    }
+    const psn = { ...DEFAULT_PSN, ...(parsed.psn ?? {}) };
+    const games = migrateGames(parsed.games ?? {});
     return {
       games,
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-      psn: { ...DEFAULT_PSN, ...(parsed.psn ?? {}) },
+      psn,
+      sources: migrateSources(parsed.sources, psn),
       competitors: parsed.competitors ?? [...DEFAULT_COMPETITORS],
       competitorProducts: parsed.competitorProducts ?? {},
       competitorMatches: parsed.competitorMatches ?? {},
@@ -139,6 +193,7 @@ function load(): DbShape {
       games: {},
       settings: { ...DEFAULT_SETTINGS },
       psn: { ...DEFAULT_PSN },
+      sources: [...DEFAULT_SOURCES],
       competitors: [...DEFAULT_COMPETITORS],
       competitorProducts: {},
       competitorMatches: {},
@@ -162,6 +217,10 @@ function scheduleSave() {
   saveTimer = setTimeout(persist, 150);
 }
 
+function gameKey(platform: Platform, region: string, id: string): string {
+  return `${platform}:${region}:${id}`;
+}
+
 export const store = {
   listGames(): Game[] {
     return Object.values(db.games);
@@ -169,8 +228,12 @@ export const store = {
   getGame(id: string): Game | undefined {
     return db.games[id];
   },
+  getGameByComposite(platform: Platform, region: string, id: string): Game | undefined {
+    return db.games[gameKey(platform, region, id)];
+  },
   upsertGame(game: Game): void {
-    db.games[game.id] = game;
+    const key = gameKey(game.platform, game.region, game.id);
+    db.games[key] = game;
     scheduleSave();
   },
   patchGame(id: string, patch: Partial<Game>): Game | undefined {
@@ -181,11 +244,14 @@ export const store = {
     scheduleSave();
     return updated;
   },
-  markInactiveIfMissing(seenIds: Set<string>): number {
+  markInactiveIfMissing(seenKeys: Set<string>, platform?: Platform, region?: string): number {
     let n = 0;
     const now = new Date().toISOString();
-    for (const g of Object.values(db.games)) {
-      if (g.active && !seenIds.has(g.id)) {
+    for (const [key, g] of Object.entries(db.games)) {
+      if (!g.active) continue;
+      if (platform && g.platform !== platform) continue;
+      if (region && g.region !== region) continue;
+      if (!seenKeys.has(key)) {
         g.active = false;
         g.updatedAt = now;
         n++;
@@ -275,6 +341,14 @@ export const store = {
     delete db.watchlist[id];
     scheduleSave();
     return true;
+  },
+  getSources(): ProviderSource[] {
+    return db.sources.map((s) => ({ ...s }));
+  },
+  setSources(list: ProviderSource[]): ProviderSource[] {
+    db.sources = list.map((s) => ({ ...s }));
+    scheduleSave();
+    return db.sources.map((s) => ({ ...s }));
   },
   flush(): void {
     if (saveTimer) clearTimeout(saveTimer);

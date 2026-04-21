@@ -12,18 +12,29 @@ function roundTo(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-/**
- * Given a USD price in cents (the discounted PSN price) and the pricing config,
- * return the estimated CLP purchase cost and the three sale prices rounded to
- * `roundTo` pesos.
- */
+function exchangeRate(currency: string, cfg: PricingSettings): number {
+  switch (currency) {
+    case "BRL":
+      return cfg.brlToClp;
+    case "TRY":
+      return cfg.tryToClp;
+    case "JPY":
+      return cfg.jpyToClp;
+    case "USD":
+    default:
+      return cfg.usdToClp;
+  }
+}
+
 export function computeSalePrices(
-  priceCentsUsd: number | null,
-  cfg: PricingSettings
+  priceCents: number | null,
+  cfg: PricingSettings,
+  currency = "USD"
 ): SalePrices | null {
-  if (priceCentsUsd == null) return null;
-  const priceUsd = priceCentsUsd / 100;
-  const cost = priceUsd * cfg.usdToClp * (1 + cfg.purchaseFeePct);
+  if (priceCents == null) return null;
+  const price = priceCents / 100;
+  const rate = exchangeRate(currency, cfg);
+  const cost = price * rate * (1 + cfg.purchaseFeePct);
   return {
     costClp: roundTo(cost, cfg.roundTo),
     primaria1: roundTo(cost * cfg.primaria1Mult, cfg.roundTo),

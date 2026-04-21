@@ -1,3 +1,5 @@
+export type Platform = "psn" | "xbox" | "nintendo" | "steam";
+
 export interface CompetitorMatchOut {
   storeKey: string;
   title: string;
@@ -9,11 +11,19 @@ export interface CompetitorMatchOut {
 
 export interface GameOut {
   id: string;
+  dbKey: string;
+  platform: Platform;
+  region: string;
+  currency: string;
   name: string;
   imageUrl: string | null;
   storeUrl: string | null;
   platforms: string;
+  priceOriginal: number | null;
+  priceDiscounted: number | null;
+  /** @deprecated Use priceOriginal */
   priceOriginalUsd: number | null;
+  /** @deprecated Use priceDiscounted */
   priceDiscountedUsd: number | null;
   discountPercent: number;
   discountEndAt: string | null;
@@ -58,6 +68,9 @@ export interface CompetitorRefreshResult {
 
 export interface PricingSettings {
   usdToClp: number;
+  brlToClp: number;
+  tryToClp: number;
+  jpyToClp: number;
   purchaseFeePct: number;
   primaria1Mult: number;
   primaria2Mult: number;
@@ -72,9 +85,17 @@ export interface PsnConfig {
   includeAddOns: boolean;
 }
 
+export interface ProviderSource {
+  platform: Platform;
+  region: string;
+  enabled: boolean;
+  categoryId?: string;
+}
+
 export interface SettingsResponse {
   pricing: PricingSettings;
   psn: PsnConfig;
+  sources: ProviderSource[];
 }
 
 export interface WatchlistAlert {
@@ -85,6 +106,16 @@ export interface WatchlistAlert {
   storeUrl: string | null;
 }
 
+export interface SourceResult {
+  platform: string;
+  region: string;
+  newCount: number;
+  updated: number;
+  disappeared: number;
+  totalSeen: number;
+  error?: string;
+}
+
 export interface RefreshSummary {
   new: number;
   updated: number;
@@ -93,6 +124,7 @@ export interface RefreshSummary {
   kept: number;
   filteredAddOns: number;
   watchlistAlerts: WatchlistAlert[];
+  sourceResults?: SourceResult[];
 }
 
 export interface WatchedGame {
@@ -146,5 +178,40 @@ export interface Filters {
   onlySelected: boolean;
   hidePublished: boolean;
   onlyWithMarket: boolean;
+  platform: Platform | "";
   sort: "discount" | "price" | "name" | "market";
 }
+
+export interface RegionConfig {
+  code: string;
+  label: string;
+  currency: string;
+  locale: string;
+}
+
+export interface PlatformMeta {
+  labels: Record<Platform, string>;
+  regions: Record<Platform, RegionConfig[]>;
+}
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  psn: "PlayStation",
+  xbox: "Xbox",
+  nintendo: "Nintendo",
+  steam: "Steam",
+};
+
+export const PLATFORM_ICONS: Record<Platform, string> = {
+  psn: "PS",
+  xbox: "XB",
+  nintendo: "NS",
+  steam: "ST",
+};
+
+export const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: "$",
+  BRL: "R$",
+  TRY: "₺",
+  JPY: "¥",
+  CLP: "$",
+};

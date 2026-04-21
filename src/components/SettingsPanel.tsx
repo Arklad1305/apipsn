@@ -4,19 +4,22 @@ import type {
   CompetitorStatus,
   CompetitorType,
   PricingSettings,
+  ProviderSource,
   PsnConfig,
   SettingsResponse,
 } from "../types";
+import { PLATFORM_LABELS } from "../types";
 
 interface Props {
   initial: SettingsResponse;
   onSaved: (s: SettingsResponse) => void;
 }
 
-type SectionId = "pricing" | "psn" | "competitors";
+type SectionId = "pricing" | "sources" | "psn" | "competitors";
 
 const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
   { id: "pricing", label: "Precios", hint: "Tipo de cambio y multiplicadores" },
+  { id: "sources", label: "Plataformas", hint: "PSN, Xbox, Nintendo, Steam" },
   { id: "psn", label: "PSN", hint: "Región y categoría de ofertas" },
   { id: "competitors", label: "Competencia", hint: "Tiendas a scrapear" },
 ];
@@ -24,12 +27,14 @@ const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
 export function SettingsPanel({ initial, onSaved }: Props) {
   const [pricing, setPricing] = useState<PricingSettings>(initial.pricing);
   const [psn, setPsn] = useState<PsnConfig>(initial.psn);
+  const [sources, setSources] = useState<ProviderSource[]>(initial.sources || []);
   const [competitors, setCompetitors] = useState<CompetitorStatus[]>([]);
   const [saving, setSaving] = useState(false);
   const [active, setActive] = useState<SectionId>("pricing");
 
   const refs = {
     pricing: useRef<HTMLDivElement>(null),
+    sources: useRef<HTMLDivElement>(null),
     psn: useRef<HTMLDivElement>(null),
     competitors: useRef<HTMLDivElement>(null),
   };
@@ -44,16 +49,15 @@ export function SettingsPanel({ initial, onSaved }: Props) {
     return (
       JSON.stringify(pricing) !== JSON.stringify(initial.pricing) ||
       JSON.stringify(psn) !== JSON.stringify(initial.psn) ||
-      // We don't track competitors' previous state, so err on the side of
-      // "always allow saving" when the list is loaded.
+      JSON.stringify(sources) !== JSON.stringify(initial.sources || []) ||
       competitors.length > 0
     );
-  }, [pricing, psn, initial, competitors]);
+  }, [pricing, psn, sources, initial, competitors]);
 
   const save = async () => {
     setSaving(true);
     try {
-      const r = await putSettings({ pricing, psn });
+      const r = await putSettings({ pricing, psn, sources });
       await putCompetitors(
         competitors.map(({ key, label, domain, type, enabled }) => ({
           key,
@@ -73,6 +77,16 @@ export function SettingsPanel({ initial, onSaved }: Props) {
     setActive(id);
     refs[id].current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const toggleSource = (idx: number, enabled: boolean) =>
+    setSources((list) =>
+      list.map((s, i) => (i === idx ? { ...s, enabled } : s))
+    );
+
+  const updateSourceField = (idx: number, field: string, value: string) =>
+    setSources((list) =>
+      list.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
+    );
 
   const updateCompetitor = (idx: number, patch: Partial<CompetitorStatus>) =>
     setCompetitors((list) =>
@@ -137,12 +151,15 @@ export function SettingsPanel({ initial, onSaved }: Props) {
           <header className="settings-section-header">
             <h3>Precios</h3>
             <p className="help">
-              Fórmula: <code>cost = precioUSD × USD→CLP × (1 + fee)</code>,{" "}
+              Fórmula: <code>cost = precio × TC × (1 + fee)</code>,{" "}
               <code>venta = cost × multiplicador</code>, redondeado.
             </p>
           </header>
           <div className="field-grid">
-            {numField("usdToClp", "USD → CLP", "Tipo de cambio", 1)}
+            {numField("usdToClp", "USD → CLP", "Dólar estadounidense", 1)}
+            {numField("brlToClp", "BRL → CLP", "Real brasileño", 0.1)}
+            {numField("tryToClp", "TRY → CLP", "Lira turca", 0.1)}
+            {numField("jpyToClp", "JPY → CLP", "Yen japonés", 0.01)}
             {numField("purchaseFeePct", "Fee de compra", "Tarjeta / PayPal (0.05 = 5%)")}
             {numField("primaria1Mult", "Multiplicador primaria 1", "Margen sobre el costo CLP")}
             {numField("primaria2Mult", "Multiplicador primaria 2", "Margen sobre el costo CLP")}
@@ -162,12 +179,71 @@ export function SettingsPanel({ initial, onSaved }: Props) {
           </div>
         </section>
 
+        <section ref={refs.sources} className="settings-section" id="sources">
+          <header className="settings-section-header">
+            <h3>Plataformas y regiones</h3>
+            <p className="help">
+              Activa las fuentes que quieres scrapear. El botón "Actualizar ofertas"
+              consultará todas las fuentes activas.
+            </p>
+          </header>
+          <div className="sources-grid">
+            <div className="source-row source-head">
+              <span></span>
+              <span>Plataforma</span>
+              <span>Región</span>
+              <span>Moneda</span>
+              <span>Category ID</span>
+            </div>
+            {sources.map((s, i) => {
+              const label = PLATFORM_LABELS[s.platform] || s.platform;
+              const showCatId = s.platform === "psn";
+              return (
+                <div className="source-row" key={`${s.platform}-${s.region}`}>
+                  <input
+                    type="checkbox"
+                    checked={s.enabled}
+                    onChange={(e) => toggleSource(i, e.target.checked)}
+                  />
+                  <span className={`platform-badge platform-${s.platform}`}>
+                    {label}
+                  </span>
+                  <span>{s.region.toUpperCase()}</span>
+                  <span className="muted">
+                    {s.region === "br"
+                      ? "BRL"
+                      : s.region === "tr"
+                      ? "TRY"
+                      : s.region === "jp"
+                      ? "JPY"
+                      : "USD"}
+                  </span>
+                  <span>
+                    {showCatId ? (
+                      <input
+                        className="source-cat-input"
+                        value={s.categoryId || ""}
+                        placeholder="UUID categoría…"
+                        onChange={(e) =>
+                          updateSourceField(i, "categoryId", e.target.value)
+                        }
+                      />
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <section ref={refs.psn} className="settings-section" id="psn">
           <header className="settings-section-header">
-            <h3>PSN</h3>
+            <h3>PSN (legado)</h3>
             <p className="help">
-              El scraper parsea{" "}
-              <code>store.playstation.com/&lt;region&gt;/category/&lt;id&gt;</code>.
+              Config PSN clásica. El Category ID también se puede configurar
+              arriba en la sección de plataformas.
             </p>
           </header>
           <div className="field-grid">
@@ -187,7 +263,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
                   setPsn((p) => ({ ...p, dealsCategoryId: e.target.value }))
                 }
               />
-              <span className="field-hint">UUID de la categoría de ofertas (cambia cada semana)</span>
+              <span className="field-hint">UUID de la categoría de ofertas</span>
             </label>
           </div>
           <label className="chk-field">

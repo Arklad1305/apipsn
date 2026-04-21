@@ -212,10 +212,13 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
 
   return {
     id: String(id),
+    platform: "psn" as const,
+    region: "us",
     name,
     imageUrl,
     storeUrl: `https://store.playstation.com/en-us/product/${id}`,
     platforms,
+    currency: "USD",
     priceOriginalCents,
     priceDiscountedCents,
     discountPercent,

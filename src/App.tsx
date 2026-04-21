@@ -88,15 +88,16 @@ const DEFAULT_FILTERS: Filters = {
   onlySelected: false,
   hidePublished: false,
   onlyWithMarket: false,
+  platform: "",
   sort: "discount",
 };
 
 type TabId = "offers" | "watchlist" | "settings";
 
 const TABS: { id: TabId; label: string; hint?: string }[] = [
-  { id: "offers", label: "Ofertas", hint: "Catálogo de ofertas semanales de PSN" },
+  { id: "offers", label: "Ofertas", hint: "PSN · Xbox · Nintendo · Steam" },
   { id: "watchlist", label: "Seguimiento", hint: "Juegos que te avisamos cuando entren en oferta" },
-  { id: "settings", label: "Configuración", hint: "Precios, PSN y competencia" },
+  { id: "settings", label: "Configuración", hint: "Plataformas, precios y competencia" },
 ];
 
 export function App() {
@@ -149,7 +150,7 @@ export function App() {
 
   const onRefresh = async () => {
     setStatusKind("info");
-    setStatusMsg("Consultando PSN…");
+    setStatusMsg("Consultando ofertas…");
     try {
       const summary = await refresh();
       setStatusKind("ok");
@@ -157,8 +158,23 @@ export function App() {
       const filtered = summary.filteredAddOns
         ? ` (${summary.filteredAddOns} complementos filtrados)`
         : "";
+      let sourceInfo = "";
+      if (summary.sourceResults?.length) {
+        const ok = summary.sourceResults.filter((r) => !r.error);
+        const fail = summary.sourceResults.filter((r) => r.error);
+        if (ok.length) {
+          sourceInfo = " · " + ok.map((r) =>
+            `${r.platform.toUpperCase()}/${r.region.toUpperCase()}: ${r.totalSeen}`
+          ).join(", ");
+        }
+        if (fail.length) {
+          sourceInfo += " · " + fail.map((r) =>
+            `${r.platform.toUpperCase()}/${r.region.toUpperCase()} ✗ ${r.error}`
+          ).join(", ");
+        }
+      }
       setStatusMsg(
-        `OK: ${base}${filtered} · ${summary.new} nuevos, ${summary.updated} actualizados, ${summary.disappeared} fuera`
+        `OK: ${base}${filtered} · ${summary.new} nuevos, ${summary.updated} actualizados, ${summary.disappeared} fuera${sourceInfo}`
       );
       if (summary.watchlistAlerts?.length) {
         setWatchlistAlerts(summary.watchlistAlerts);
@@ -210,8 +226,8 @@ export function App() {
   };
 
   const updateGameLocal = (g: GameOut) => {
-    setGames((prev) => prev.map((x) => (x.id === g.id ? g : x)));
-    setDetailGame((prev) => (prev && prev.id === g.id ? g : prev));
+    setGames((prev) => prev.map((x) => ((x.dbKey || x.id) === (g.dbKey || g.id) ? g : x)));
+    setDetailGame((prev) => (prev && (prev.dbKey || prev.id) === (g.dbKey || g.id) ? g : prev));
   };
 
   const onFollowGame = async (g: GameOut) => {
@@ -233,7 +249,7 @@ export function App() {
         <div className="brand">
           <h1>apipsn</h1>
           <p className="subtitle">
-            Ofertas PS Store US · precios de reventa en CLP
+            Ofertas PSN · Xbox · Nintendo · Steam · precios de reventa en CLP
           </p>
         </div>
         <Tabs tabs={TABS} active={activeTab} onChange={(id) => {
