@@ -104,29 +104,107 @@ interface AlgoliaHit {
   };
 }
 
-async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
-  const pageSize = 500;
-  let page = 0;
-  const maxPages = 20;
+// Try multiple Algolia filter strategies; Nintendo doesn't document which
+// attributes are configured as filterable, so we cascade until one works.
+const FILTER_STRATEGIES = [
+  `facetFilters=${encodeURIComponent('[["topLevelFilters:Deals"]]')}`,
+  `facetFilters=${encodeURIComponent('[["filterShops:On Sale"]]')}`,
+  `facetFilters=${encodeURIComponent('[["availability:Sale"]]')}`,
+  `numericFilters=${encodeURIComponent('["price.percentOff>0"]')}`,
+  "", // no filter — fetch everything and filter in code
+];
 
-  while (page < maxPages) {
-    const params = [
-      `query=`,
-      `hitsPerPage=${pageSize}`,
-      `page=${page}`,
-    ].join("&");
-    const body = { params };
+async function algoliaQuery(
+  params: string,
+): Promise<any> {
+  return postJson(
+    `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/${ALGOLIA_INDEX}/query`,
+    { params },
+    {
+      "x-algolia-application-id": ALGOLIA_APP_ID,
+      "x-algolia-api-key": ALGOLIA_API_KEY,
+    }
+  );
+}
+
+async function findWorkingFilter(): Promise<string> {
+  for (const filter of FILTER_STRATEGIES) {
+    const extra = filter ? `&${filter}` : "";
+    const params = `query=&hitsPerPage=5&page=0${extra}`;
+    try {
+      const data = await algoliaQuery(params);
+      const nbHits = data?.nbHits ?? 0;
+      if (nbHits > 0) {
+        console.log(`[nintendo/us] Filter OK (nbHits=${nbHits}): ${filter || "(none)"}`);
+        return filter;
+      }
+    } catch {
+      // Filter not supported, try next
+    }
+  }
+  return "";
+}
+
+function parseNintendoHit(hit: AlgoliaHit): RawDeal | null {
+  const id = hit.nsuid || hit.objectID;
+  const name = hit.title;
+  if (!name || !id) return null;
+
+  const price = hit.price;
+  if (!price || !price.salePrice) return null;
+
+  const regPrice = price.regPrice;
+  const salePrice = price.salePrice;
+
+  const originalCents = regPrice != null ? Math.round(regPrice * 100) : null;
+  const discountedCents =
+    salePrice != null ? Math.round(salePrice * 100) : originalCents;
+
+  let discountPercent = price.percentOff ?? 0;
+  if (
+    !discountPercent &&
+    originalCents &&
+    discountedCents != null &&
+    discountedCents < originalCents
+  ) {
+    discountPercent = Math.round(
+      ((originalCents - discountedCents) * 100) / originalCents
+    );
+  }
+
+  const imageUrl = hit.productImageSquare || hit.productImage || null;
+  const storeUrl = hit.url
+    ? `https://www.nintendo.com${hit.url}`
+    : `https://www.nintendo.com/us/store/products/${id}/`;
+
+  return {
+    id,
+    name,
+    imageUrl,
+    storeUrl,
+    hardwarePlatforms: hit.platform || "Nintendo Switch",
+    currency: "USD",
+    priceOriginalCents: originalCents,
+    priceDiscountedCents: discountedCents,
+    discountPercent,
+    discountEndAt: hit.eshopDetails?.discountPriceEnd || null,
+  };
+}
+
+async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
+  const filter = await findWorkingFilter();
+  const pageSize = 500;
+  const maxPages = 50;
+  let emitted = 0;
+  let pagesWithoutNew = 0;
+
+  for (let page = 0; page < maxPages; page++) {
+    const extra = filter ? `&${filter}` : "";
+    const params = `query=&hitsPerPage=${pageSize}&page=${page}${extra}`;
 
     let data: any;
     try {
-      data = await postJson(
-        `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/${ALGOLIA_INDEX}/query`,
-        body,
-        {
-          "x-algolia-application-id": ALGOLIA_APP_ID,
-          "x-algolia-api-key": ALGOLIA_API_KEY,
-        }
-      );
+      data = await algoliaQuery(params);
     } catch (e) {
       if (page === 0) {
         throw new ProviderError("nintendo", "us", `Algolia request failed: ${(e as Error).message}`);
@@ -143,55 +221,30 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       break;
     }
 
+    let pageDeals = 0;
     for (const hit of hits) {
-      const id = hit.nsuid || hit.objectID;
-      const name = hit.title;
-      if (!name || !id) continue;
-
-      const price = hit.price;
-      if (!price || !price.salePrice) continue;
-
-      const regPrice = price.regPrice;
-      const salePrice = price.salePrice;
-
-      const originalCents = regPrice != null ? Math.round(regPrice * 100) : null;
-      const discountedCents =
-        salePrice != null ? Math.round(salePrice * 100) : originalCents;
-
-      let discountPercent = price.percentOff ?? 0;
-      if (
-        !discountPercent &&
-        originalCents &&
-        discountedCents != null &&
-        discountedCents < originalCents
-      ) {
-        discountPercent = Math.round(
-          ((originalCents - discountedCents) * 100) / originalCents
-        );
+      const deal = parseNintendoHit(hit);
+      if (deal) {
+        pageDeals++;
+        emitted++;
+        yield deal;
       }
+    }
 
-      const imageUrl = hit.productImageSquare || hit.productImage || null;
-      const storeUrl = hit.url
-        ? `https://www.nintendo.com${hit.url}`
-        : `https://www.nintendo.com/us/store/products/${id}/`;
-
-      yield {
-        id,
-        name,
-        imageUrl,
-        storeUrl,
-        hardwarePlatforms: hit.platform || "Nintendo Switch",
-        currency: "USD",
-        priceOriginalCents: originalCents,
-        priceDiscountedCents: discountedCents,
-        discountPercent,
-        discountEndAt: hit.eshopDetails?.discountPriceEnd || null,
-      };
+    // If fetching unfiltered and 3 consecutive pages have no deals, stop early
+    if (!filter && pageDeals === 0) {
+      pagesWithoutNew++;
+      if (pagesWithoutNew >= 3) break;
+    } else {
+      pagesWithoutNew = 0;
     }
 
     const totalPages = data?.nbPages ?? 0;
-    page++;
-    if (page >= totalPages) break;
+    if (page + 1 >= totalPages) break;
+  }
+
+  if (emitted === 0) {
+    throw new ProviderError("nintendo", "us", "No se encontraron juegos en oferta en Nintendo US");
   }
 }
 
