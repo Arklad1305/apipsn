@@ -78,7 +78,8 @@ async function postJson(url: string, body: any, headers?: Record<string, string>
 // --- US eShop via Algolia (same API the Nintendo website uses) ---
 
 const ALGOLIA_APP_ID = "U3B6GR4UA3";
-const ALGOLIA_API_KEY = "c4da8be7fd29f0f5bfa42920b0a99dc7";
+const ALGOLIA_API_KEY = "a29c6927638bfd8cee23993e51e721c9";
+const ALGOLIA_INDEX = "store_game_en_us";
 
 interface AlgoliaHit {
   objectID: string;
@@ -101,26 +102,19 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
   const maxPages = 20;
 
   while (page < maxPages) {
-    const body = {
-      requests: [
-        {
-          indexName: "noa_aem_game_en_us_title_asc",
-          params: [
-            `query=`,
-            `hitsPerPage=${pageSize}`,
-            `page=${page}`,
-            `facetFilters=[["availability:On sale"]]`,
-            `facets=["platform","availability"]`,
-          ].join("&"),
-        },
-      ],
-    };
+    const params = [
+      `query=`,
+      `hitsPerPage=${pageSize}`,
+      `page=${page}`,
+      `facetFilters=[["availability:On sale"]]`,
+      `facets=["platform","availability"]`,
+    ].join("&");
 
     let data: any;
     try {
       data = await postJson(
-        `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`,
-        body,
+        `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/${ALGOLIA_INDEX}/query`,
+        { params },
         {
           "x-algolia-application-id": ALGOLIA_APP_ID,
           "x-algolia-api-key": ALGOLIA_API_KEY,
@@ -130,8 +124,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       break;
     }
 
-    const results = data?.results?.[0];
-    const hits: AlgoliaHit[] = results?.hits ?? [];
+    const hits: AlgoliaHit[] = data?.hits ?? [];
     if (hits.length === 0) break;
 
     for (const hit of hits) {
@@ -178,7 +171,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       };
     }
 
-    const totalPages = results?.nbPages ?? 0;
+    const totalPages = data?.nbPages ?? 0;
     page++;
     if (page >= totalPages) break;
   }
