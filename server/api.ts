@@ -16,9 +16,6 @@ import { store, type Game, type WatchedGame } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
   inspectProductTypes,
-  isFullGameProduct,
-  iterCategoryProducts,
-  normalizeProduct,
   PersistedQueryNotFoundError,
   PsnApiError,
 } from "./psn";
@@ -261,11 +258,6 @@ route("POST", "/refresh", async (req, res) => {
       return true;
     });
 
-    if (sources.length === 0 && !targetPlatform) {
-      // Fallback: legacy PSN-only refresh for backward compatibility
-      return await legacyPsnRefresh(res);
-    }
-
     const nowIso = new Date().toISOString();
     const results: Array<{
       platform: string;
@@ -417,66 +409,6 @@ route("POST", "/refresh", async (req, res) => {
     sendJson(res, 500, { error: "internal", message: (e as Error).message });
   }
 });
-
-async function legacyPsnRefresh(res: ServerResponse) {
-  const cfg = store.getPsn();
-  const seenKeys = new Set<string>();
-  let newCount = 0;
-  let updated = 0;
-  let totalSeen = 0;
-  let filteredAddOns = 0;
-  const nowIso = new Date().toISOString();
-
-  for await (const raw of iterCategoryProducts(cfg)) {
-    totalSeen++;
-    if (!cfg.includeAddOns && !isFullGameProduct(raw)) {
-      filteredAddOns++;
-      continue;
-    }
-    const normalized = normalizeProduct(raw, nowIso);
-    if (!normalized) continue;
-    normalized.platform = "psn";
-    normalized.region = "us";
-    normalized.currency = "USD";
-    const dbKey = `psn:us:${normalized.id}`;
-    seenKeys.add(dbKey);
-    const existing = store.getGameByComposite("psn", "us", normalized.id);
-    if (!existing) {
-      store.upsertGame(normalized);
-      newCount++;
-    } else {
-      store.upsertGame({
-        ...existing,
-        name: normalized.name || existing.name,
-        imageUrl: normalized.imageUrl || existing.imageUrl,
-        storeUrl: normalized.storeUrl || existing.storeUrl,
-        platforms: normalized.platforms,
-        priceOriginalCents: normalized.priceOriginalCents,
-        priceDiscountedCents: normalized.priceDiscountedCents,
-        discountPercent: normalized.discountPercent,
-        discountEndAt: normalized.discountEndAt,
-        active: true,
-        lastSeenAt: nowIso,
-        updatedAt: nowIso,
-      });
-      updated++;
-    }
-  }
-  const disappeared = store.markInactiveIfMissing(seenKeys, "psn", "us");
-  recomputeMatches();
-  const watchlistAlerts = diffWatchlist(new Set(
-    [...seenKeys].map(k => k.replace(/^psn:us:/, ""))
-  ), nowIso);
-  sendJson(res, 200, {
-    new: newCount,
-    updated,
-    disappeared,
-    totalSeen,
-    kept: seenKeys.size,
-    filteredAddOns,
-    watchlistAlerts,
-  });
-}
 
 // GET /games/export.csv
 route("GET", "/games/export.csv", async (req, res) => {

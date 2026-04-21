@@ -130,6 +130,12 @@ const DEFAULT_PSN: PsnConfig = {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.resolve(__dirname, "../data/apipsn.json");
+const TMP_FILE = path.resolve(__dirname, "../data/apipsn.json.tmp");
+const BACKUP_FILE = path.resolve(__dirname, "../data/apipsn.backup.json");
+
+/** Simple write-lock: prevents overlapping writes. */
+let writing = false;
+let pendingWrite = false;
 
 function ensureDir() {
   const dir = path.dirname(DATA_FILE);
@@ -183,37 +189,89 @@ function migrateSources(
   return existing;
 }
 
+function buildDb(parsed: Partial<DbShape>): DbShape {
+  const psn = { ...DEFAULT_PSN, ...(parsed.psn ?? {}) };
+  const games = migrateGames(parsed.games ?? {});
+  return {
+    games,
+    settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+    psn,
+    sources: migrateSources(parsed.sources, psn),
+    competitors: parsed.competitors ?? [...DEFAULT_COMPETITORS],
+    competitorProducts: parsed.competitorProducts ?? {},
+    competitorMatches: parsed.competitorMatches ?? {},
+    competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
+    productDetails: parsed.productDetails ?? {},
+    watchlist: parsed.watchlist ?? {},
+  };
+}
+
+function emptyDb(): DbShape {
+  return {
+    games: {},
+    settings: { ...DEFAULT_SETTINGS },
+    psn: { ...DEFAULT_PSN },
+    sources: [...DEFAULT_SOURCES],
+    competitors: [...DEFAULT_COMPETITORS],
+    competitorProducts: {},
+    competitorMatches: {},
+    competitorRefreshedAt: {},
+    productDetails: {},
+    watchlist: {},
+  };
+}
+
 function load(): DbShape {
   try {
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<DbShape>;
-    const psn = { ...DEFAULT_PSN, ...(parsed.psn ?? {}) };
-    const games = migrateGames(parsed.games ?? {});
-    return {
-      games,
-      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-      psn,
-      sources: migrateSources(parsed.sources, psn),
-      competitors: parsed.competitors ?? [...DEFAULT_COMPETITORS],
-      competitorProducts: parsed.competitorProducts ?? {},
-      competitorMatches: parsed.competitorMatches ?? {},
-      competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
-      productDetails: parsed.productDetails ?? {},
-      watchlist: parsed.watchlist ?? {},
-    };
+    try {
+      const parsed = JSON.parse(raw) as Partial<DbShape>;
+      return buildDb(parsed);
+    } catch {
+      // Main file is corrupted — try backup
+      console.warn("[store] Main data file corrupted, loading backup");
+      try {
+        const backupRaw = fs.readFileSync(BACKUP_FILE, "utf-8");
+        const backupParsed = JSON.parse(backupRaw) as Partial<DbShape>;
+        return buildDb(backupParsed);
+      } catch {
+        return emptyDb();
+      }
+    }
   } catch {
-    return {
-      games: {},
-      settings: { ...DEFAULT_SETTINGS },
-      psn: { ...DEFAULT_PSN },
-      sources: [...DEFAULT_SOURCES],
-      competitors: [...DEFAULT_COMPETITORS],
-      competitorProducts: {},
-      competitorMatches: {},
-      competitorRefreshedAt: {},
-      productDetails: {},
-      watchlist: {},
-    };
+    return emptyDb();
+  }
+}
+
+function maybeBackup() {
+  try {
+    const stat = fs.statSync(DATA_FILE);
+    const ageMs = Date.now() - stat.mtimeMs;
+    if (ageMs > 60 * 60 * 1000) {
+      fs.copyFileSync(DATA_FILE, BACKUP_FILE);
+    }
+  } catch {
+    // File may not exist yet — nothing to back up.
+  }
+}
+
+function persist() {
+  if (writing) {
+    pendingWrite = true;
+    return;
+  }
+  writing = true;
+  try {
+    ensureDir();
+    maybeBackup();
+    fs.writeFileSync(TMP_FILE, JSON.stringify(db, null, 2));
+    fs.renameSync(TMP_FILE, DATA_FILE);
+  } finally {
+    writing = false;
+    if (pendingWrite) {
+      pendingWrite = false;
+      persist();
+    }
   }
 }
 
@@ -221,12 +279,7 @@ let db: DbShape = load();
 let saveTimer: NodeJS.Timeout | null = null;
 
 // Persist migrated data on first load so new sources/fields are saved
-try { ensureDir(); fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); } catch { /* ignore */ }
-
-function persist() {
-  ensureDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
-}
+try { persist(); } catch { /* ignore */ }
 
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
