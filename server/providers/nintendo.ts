@@ -10,21 +10,45 @@ const CURRENCY_MAP: Record<string, string> = {
   jp: "JPY",
 };
 
-async function fetchJson(url: string, headers?: Record<string, string>): Promise<any> {
+async function fetchWithRetry(
+  url: string,
+  headers?: Record<string, string>
+): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const r = await fetch(url, {
-        headers: { "user-agent": UA, accept: "application/json", ...headers },
+        headers: { "user-agent": UA, ...headers },
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
+      if (r.status === 403 || r.status === 429) {
+        await new Promise((res) => setTimeout(res, 1000 * 2 ** attempt));
+        continue;
+      }
+      return r;
     } catch (e) {
       lastError = e;
       await new Promise((res) => setTimeout(res, 500 * 2 ** attempt));
     }
   }
   throw lastError;
+}
+
+async function fetchJson(url: string, headers?: Record<string, string>): Promise<any> {
+  const r = await fetchWithRetry(url, {
+    accept: "application/json",
+    ...headers,
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function fetchHtml(url: string): Promise<string> {
+  const r = await fetchWithRetry(url, {
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "accept-language": "ja",
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.text();
 }
 
 async function postJson(url: string, body: any, headers?: Record<string, string>): Promise<any> {
@@ -160,31 +184,199 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
   }
 }
 
-// --- Japan eShop via Nintendo's search API ---
+// --- Japan eShop via store-jp.nintendo.com (SFCC) ---
+// Primary: HTML scraping of the official store listing.
+// Fallback: search.nintendo.jp JSON API.
 
-interface JpSearchItem {
-  id: string;
-  title: string;
-  nsuid?: string;
-  hard?: string;
-  iurl?: string;
-  ppri?: string;
-  spri?: string;
-  dsper?: string;
-  sslurl?: string;
-  ssitu?: string;
-}
-
-function jpPriceToCents(s: string | undefined | null): number | null {
+function jpYenToCents(s: string | undefined | null): number | null {
   if (!s) return null;
   const cleaned = s.replace(/[^0-9]/g, "");
   const n = parseInt(cleaned, 10);
-  if (!Number.isFinite(n)) return null;
-  // JPY has no decimals, but we store in "cents" (= yen * 100) for consistency
+  if (!Number.isFinite(n) || n === 0) return null;
+  // JPY has no decimals; store as yen × 100 for consistency with other currencies
   return n * 100;
 }
 
-async function* fetchNintendoJP(): AsyncGenerator<RawDeal> {
+/** Parse products from the store-jp.nintendo.com HTML listing.
+ *  The page embeds product tiles with structured data we can regex-extract. */
+function parseJpStoreHtml(html: string): RawDeal[] {
+  const deals: RawDeal[] = [];
+  const seen = new Set<string>();
+
+  // Strategy 1: Look for JSON-LD product data
+  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let jsonLdMatch;
+  while ((jsonLdMatch = jsonLdRegex.exec(html)) !== null) {
+    try {
+      const ld = JSON.parse(jsonLdMatch[1]);
+      const items = Array.isArray(ld) ? ld : ld["@graph"] ? ld["@graph"] : [ld];
+      for (const item of items) {
+        if (item["@type"] !== "Product" && item["@type"] !== "VideoGame") continue;
+        const id = item.sku || item.productID || item.identifier;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+        deals.push({
+          id: String(id),
+          name: item.name || "",
+          imageUrl: item.image || null,
+          storeUrl: item.url || `https://store-jp.nintendo.com/item/software/${id}`,
+          hardwarePlatforms: "Nintendo Switch",
+          currency: "JPY",
+          priceOriginalCents: null,
+          priceDiscountedCents: jpYenToCents(offer?.price || offer?.lowPrice),
+          discountPercent: 0,
+          discountEndAt: null,
+        });
+      }
+    } catch { /* ignore malformed JSON-LD */ }
+  }
+
+  if (deals.length > 0) return deals;
+
+  // Strategy 2: Extract from embedded __NEXT_DATA__ or similar JSON blobs
+  const nextDataMatch = /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/.exec(html);
+  if (nextDataMatch) {
+    try {
+      const data = JSON.parse(nextDataMatch[1]);
+      const products = findProductsInTree(data);
+      for (const p of products) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        deals.push(p);
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (deals.length > 0) return deals;
+
+  // Strategy 3: Regex scrape product tiles from HTML
+  // Nintendo JP store tiles typically have data attributes or structured class patterns
+  const tileRegex =
+    /data-pid=["']([^"']+)["'][\s\S]*?<[^>]*class=["'][^"']*product-name[^"']*["'][^>]*>([^<]+)<[\s\S]*?(?:data-price|class=["'][^"']*price[^"']*["'])[^>]*>([^<]*)</gi;
+  let tileMatch;
+  while ((tileMatch = tileRegex.exec(html)) !== null) {
+    const id = tileMatch[1].trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    deals.push({
+      id,
+      name: tileMatch[2].trim(),
+      imageUrl: null,
+      storeUrl: `https://store-jp.nintendo.com/item/software/${id}`,
+      hardwarePlatforms: "Nintendo Switch",
+      currency: "JPY",
+      priceOriginalCents: null,
+      priceDiscountedCents: jpYenToCents(tileMatch[3]),
+      discountPercent: 0,
+      discountEndAt: null,
+    });
+  }
+
+  // Strategy 4: Look for any embedded product JSON arrays
+  const jsonArrayRegex = /\[(\{"[^"]*id[^"]*"[:\s]*"[^"]*"[\s\S]*?\}(?:,\s*\{[\s\S]*?\})*)\]/g;
+  let arrMatch;
+  while ((arrMatch = jsonArrayRegex.exec(html)) !== null) {
+    try {
+      const arr = JSON.parse("[" + arrMatch[1] + "]");
+      for (const item of arr) {
+        const id = item.id || item.nsuid || item.productId || item.pid;
+        const name = item.title || item.name || item.productName;
+        if (!id || !name || seen.has(String(id))) continue;
+        seen.add(String(id));
+        const price = item.salePrice || item.price || item.discountPrice;
+        const origPrice = item.originalPrice || item.regularPrice || item.listPrice;
+        deals.push({
+          id: String(id),
+          name,
+          imageUrl: item.image || item.imageUrl || item.thumbnail || null,
+          storeUrl: item.url || `https://store-jp.nintendo.com/item/software/${id}`,
+          hardwarePlatforms: "Nintendo Switch",
+          currency: "JPY",
+          priceOriginalCents: jpYenToCents(String(origPrice ?? "")),
+          priceDiscountedCents: jpYenToCents(String(price ?? "")),
+          discountPercent: parseInt(item.discountRate || item.discountPercent || "0") || 0,
+          discountEndAt: null,
+        });
+      }
+    } catch { /* not valid JSON array */ }
+  }
+
+  return deals;
+}
+
+function findProductsInTree(node: unknown, results: RawDeal[] = []): RawDeal[] {
+  if (!node || typeof node !== "object") return results;
+  if (Array.isArray(node)) {
+    for (const v of node) findProductsInTree(v, results);
+    return results;
+  }
+  const obj = node as Record<string, any>;
+  const id = obj.nsuid || obj.id || obj.productId;
+  const name = obj.title || obj.name;
+  const hasPrice = obj.price != null || obj.salePrice != null || obj.regularPrice != null;
+  if (id && name && hasPrice) {
+    results.push({
+      id: String(id),
+      name: String(name),
+      imageUrl: obj.image || obj.imageUrl || null,
+      storeUrl: obj.url || `https://store-jp.nintendo.com/item/software/${id}`,
+      hardwarePlatforms: "Nintendo Switch",
+      currency: "JPY",
+      priceOriginalCents: jpYenToCents(String(obj.regularPrice ?? obj.originalPrice ?? obj.price ?? "")),
+      priceDiscountedCents: jpYenToCents(String(obj.salePrice ?? obj.discountPrice ?? obj.price ?? "")),
+      discountPercent: parseInt(obj.discountRate || obj.discountPercent || "0") || 0,
+      discountEndAt: null,
+    });
+  }
+  for (const v of Object.values(obj)) findProductsInTree(v, results);
+  return results;
+}
+
+async function* fetchNintendoJP_Store(): AsyncGenerator<RawDeal> {
+  const maxPages = 50;
+  const seen = new Set<string>();
+
+  for (let page = 1; page <= maxPages; page++) {
+    const url =
+      `https://store-jp.nintendo.com/list/software` +
+      `?softType=TITLE&isSale=true&srule=most-popular&page=${page}`;
+
+    let html: string;
+    try {
+      html = await fetchHtml(url);
+    } catch {
+      break;
+    }
+
+    const deals = parseJpStoreHtml(html);
+    let newOnPage = 0;
+    for (const deal of deals) {
+      if (seen.has(deal.id)) continue;
+      seen.add(deal.id);
+      newOnPage++;
+
+      if (
+        deal.priceOriginalCents &&
+        deal.priceDiscountedCents &&
+        deal.priceDiscountedCents < deal.priceOriginalCents &&
+        !deal.discountPercent
+      ) {
+        deal.discountPercent = Math.round(
+          ((deal.priceOriginalCents - deal.priceDiscountedCents) * 100) /
+            deal.priceOriginalCents
+        );
+      }
+
+      yield deal;
+    }
+
+    if (newOnPage === 0) break;
+  }
+}
+
+/** Fallback: search.nintendo.jp JSON API */
+async function* fetchNintendoJP_SearchApi(): AsyncGenerator<RawDeal> {
   const pageSize = 300;
   let start = 0;
   const maxItems = 6000;
@@ -210,8 +402,8 @@ async function* fetchNintendoJP(): AsyncGenerator<RawDeal> {
       const name = item.title;
       if (!name || !id) continue;
 
-      const originalCents = jpPriceToCents(item.ppri);
-      const discountedCents = jpPriceToCents(item.spri) ?? originalCents;
+      const originalCents = jpYenToCents(item.ppri);
+      const discountedCents = jpYenToCents(item.spri) ?? originalCents;
 
       let discountPercent = parseInt(item.dsper) || 0;
       if (
@@ -249,6 +441,22 @@ async function* fetchNintendoJP(): AsyncGenerator<RawDeal> {
     start += pageSize;
     const totalCount = data?.result?.total ?? 0;
     if (start >= totalCount) break;
+  }
+}
+
+async function* fetchNintendoJP(): AsyncGenerator<RawDeal> {
+  // Try the official store first, fall back to search API
+  let count = 0;
+  try {
+    for await (const deal of fetchNintendoJP_Store()) {
+      count++;
+      yield deal;
+    }
+  } catch { /* store scrape failed */ }
+
+  if (count === 0) {
+    // Fallback to search API
+    yield* fetchNintendoJP_SearchApi();
   }
 }
 
