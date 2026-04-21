@@ -90,6 +90,7 @@ export interface ProviderSource {
   region: string;
   enabled: boolean;
   categoryId?: string;
+  url?: string;
 }
 
 export interface SettingsResponse {

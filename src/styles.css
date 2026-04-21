@@ -393,38 +393,77 @@ input[type="checkbox"] {
 }
 
 /* Sources grid in settings */
-.sources-grid {
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--panel);
+  transition: opacity 0.15s;
+}
+
+.source-card.source-disabled {
+  opacity: 0.5;
+}
+
+.source-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.source-region {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.source-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 28px;
+}
+
+.source-field {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.source-row {
-  display: grid;
-  grid-template-columns: 32px 120px 60px 50px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-}
-
-.source-row:not(.source-head):hover {
-  background: var(--panel-hover);
-}
-
-.source-head {
+.source-field-label {
   font-size: 11px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-  margin-bottom: 4px;
 }
 
-.source-cat-input {
+.source-input {
   width: 100%;
   font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.source-field-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.source-field-hint a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.source-field-hint a:hover {
+  text-decoration: underline;
 }
 
 .table-wrap {

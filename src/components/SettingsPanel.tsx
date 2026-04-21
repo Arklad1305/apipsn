@@ -10,6 +10,19 @@ import type {
 } from "../types";
 import { PLATFORM_LABELS } from "../types";
 
+const SOURCE_DEFAULT_URLS: Record<string, string> = {
+  "psn:us": "https://store.playstation.com/en-us/category/deals",
+  "psn:br": "https://store.playstation.com/pt-br/category/3f772501-f6f8-49b7-abac-874a88ca4897/1",
+  "xbox:us": "https://www.xbox.com/en-US/games/browse/DynamicChannel.GameDeals",
+  "xbox:br": "https://www.xbox.com/pt-BR/games/browse/DynamicChannel.GameDeals",
+  "xbox:tr": "https://www.xbox.com/tr-TR/games/browse/DynamicChannel.GameDeals",
+  "nintendo:us": "https://www.nintendo.com/us/store/sales-and-deals/",
+  "nintendo:jp": "https://store-jp.nintendo.com/list/software?isSale=true",
+  "steam:us": "https://store.steampowered.com/search/?specials=1",
+  "steam:br": "https://store.steampowered.com/search/?specials=1&cc=br",
+  "steam:tr": "https://store.steampowered.com/search/?specials=1&cc=tr",
+};
+
 interface Props {
   initial: SettingsResponse;
   onSaved: (s: SettingsResponse) => void;
@@ -184,54 +197,58 @@ export function SettingsPanel({ initial, onSaved }: Props) {
             <h3>Plataformas y regiones</h3>
             <p className="help">
               Activa las fuentes que quieres scrapear. El botón "Actualizar ofertas"
-              consultará todas las fuentes activas.
+              consultará todas las fuentes activas. Puedes pegar la URL de ofertas
+              de cada tienda para configurar qué página se analiza.
             </p>
           </header>
-          <div className="sources-grid">
-            <div className="source-row source-head">
-              <span></span>
-              <span>Plataforma</span>
-              <span>Región</span>
-              <span>Moneda</span>
-              <span>Category ID</span>
-            </div>
+          <div className="sources-list">
             {sources.map((s, i) => {
               const label = PLATFORM_LABELS[s.platform] || s.platform;
-              const showCatId = s.platform === "psn";
+              const currency =
+                s.region === "br" ? "BRL" : s.region === "tr" ? "TRY" : s.region === "jp" ? "JPY" : "USD";
+              const defaultUrl = SOURCE_DEFAULT_URLS[`${s.platform}:${s.region}`] || "";
+
               return (
-                <div className="source-row" key={`${s.platform}-${s.region}`}>
-                  <input
-                    type="checkbox"
-                    checked={s.enabled}
-                    onChange={(e) => toggleSource(i, e.target.checked)}
-                  />
-                  <span className={`platform-badge platform-${s.platform}`}>
-                    {label}
-                  </span>
-                  <span>{s.region.toUpperCase()}</span>
-                  <span className="muted">
-                    {s.region === "br"
-                      ? "BRL"
-                      : s.region === "tr"
-                      ? "TRY"
-                      : s.region === "jp"
-                      ? "JPY"
-                      : "USD"}
-                  </span>
-                  <span>
-                    {showCatId ? (
-                      <input
-                        className="source-cat-input"
-                        value={s.categoryId || ""}
-                        placeholder="UUID categoría…"
-                        onChange={(e) =>
-                          updateSourceField(i, "categoryId", e.target.value)
-                        }
-                      />
-                    ) : (
-                      <span className="muted">—</span>
+                <div className={`source-card${s.enabled ? "" : " source-disabled"}`} key={`${s.platform}-${s.region}`}>
+                  <div className="source-card-header">
+                    <input
+                      type="checkbox"
+                      checked={s.enabled}
+                      onChange={(e) => toggleSource(i, e.target.checked)}
+                    />
+                    <span className={`platform-badge platform-${s.platform}`}>
+                      {label}
+                    </span>
+                    <span className="source-region">{s.region.toUpperCase()}</span>
+                    <span className="muted">{currency}</span>
+                  </div>
+                  <div className="source-card-body">
+                    {s.platform === "psn" && (
+                      <label className="source-field">
+                        <span className="source-field-label">Category ID</span>
+                        <input
+                          className="source-input"
+                          value={s.categoryId || ""}
+                          placeholder="UUID de categoría de ofertas…"
+                          onChange={(e) => updateSourceField(i, "categoryId", e.target.value)}
+                        />
+                      </label>
                     )}
-                  </span>
+                    <label className="source-field">
+                      <span className="source-field-label">URL de ofertas</span>
+                      <input
+                        className="source-input"
+                        value={s.url || ""}
+                        placeholder={defaultUrl || "URL de la página de ofertas…"}
+                        onChange={(e) => updateSourceField(i, "url", e.target.value)}
+                      />
+                      {defaultUrl && !s.url && (
+                        <span className="source-field-hint">
+                          Por defecto: <a href={defaultUrl} target="_blank" rel="noreferrer">{defaultUrl.replace(/^https?:\/\//, "").slice(0, 60)}</a>
+                        </span>
+                      )}
+                    </label>
+                  </div>
                 </div>
               );
             })}
