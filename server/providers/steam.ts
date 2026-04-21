@@ -57,23 +57,27 @@ async function fetchJson(url: string): Promise<any> {
 
 function parseSteamPrice(priceStr: string | undefined | null): number | null {
   if (!priceStr) return null;
-  const s = priceStr.trim();
-  if (!s || /^free/i.test(s)) return null;
+  // Decode HTML entities and strip non-breaking spaces
+  const s = priceStr
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, "")
+    .trim();
+  if (!s || /^free/i.test(s) || /gratis/i.test(s)) return null;
+  // Strip currency symbols and letters, keep digits, dots, commas
   const cleaned = s.replace(/[^0-9.,-]/g, "");
   if (!cleaned) return null;
-  // Steam formats: "$19.99" (US), "R$ 89,90" (BR), "₺119,99" (TR)
-  // Normalize comma-as-decimal (BR, TR)
+  // Steam formats: "$19.99" (US), "R$ 89,90" (BR), "119,99 TL" (TR)
+  // Also handles "1.089,90" (BR thousands separator)
   const parts = cleaned.split(/[.,]/);
   if (parts.length >= 2) {
     const lastPart = parts[parts.length - 1];
     if (lastPart.length === 2) {
-      // Last part is cents/decimals
       const whole = parts.slice(0, -1).join("");
       const n = Number(whole + "." + lastPart);
       if (Number.isFinite(n)) return Math.round(n * 100);
     }
   }
-  // Fallback: try parsing as-is
+  // Fallback: treat commas as decimal separators
   const n = Number(cleaned.replace(/,/g, "."));
   if (Number.isFinite(n)) return Math.round(n * 100);
   return null;
@@ -110,29 +114,40 @@ async function* fetchSteamDeals(
     const html: string = data?.results_html ?? "";
     if (!html || html.trim() === "") break;
 
-    // Parse the HTML snippets for app IDs + names
-    // Steam search returns HTML fragments with data-ds-appid attributes
-    const appRegex =
-      /data-ds-appid="(\d+)"[\s\S]*?<span class="title">([^<]+)<\/span>[\s\S]*?<div class="discount_pct">([^<]*)<\/div>[\s\S]*?<div class="discount_original_price">([^<]*)<\/div>[\s\S]*?<div class="discount_final_price">([^<]*)<\/div>/g;
+    // Split HTML into individual result rows by anchor boundaries
+    const anchors: { appId: string; block: string }[] = [];
+    const anchorStarts = [...html.matchAll(/<a[^>]*data-ds-appid="(\d+)"/g)];
+    for (let i = 0; i < anchorStarts.length; i++) {
+      const appId = anchorStarts[i][1];
+      const startIdx = anchorStarts[i].index!;
+      const endIdx = i + 1 < anchorStarts.length ? anchorStarts[i + 1].index! : html.length;
+      anchors.push({ appId, block: html.slice(startIdx, endIdx) });
+    }
 
-    let match;
     let foundOnPage = 0;
-    while ((match = appRegex.exec(html)) !== null) {
-      const appId = match[1];
+
+    for (const { appId, block: row } of anchors) {
       if (seen.has(appId)) continue;
       seen.add(appId);
-      foundOnPage++;
 
-      const name = match[2].trim();
-      const discountPctStr = match[3].trim().replace(/[-%]/g, "");
-      const originalPriceStr = match[4].trim();
-      const finalPriceStr = match[5].trim();
+      const nameMatch = /<span class="title">([^<]+)<\/span>/.exec(row);
+      if (!nameMatch) continue;
+      const name = nameMatch[1].trim();
+
+      const pctMatch = /discount_pct[^>]*>([^<]*)</.exec(row);
+      const origMatch = /discount_original_price[^>]*>([^<]*)</.exec(row);
+      const finalMatch = /discount_final_price[^>]*>([^<]*)</.exec(row);
+
+      const discountPctStr = pctMatch?.[1]?.trim().replace(/[-%]/g, "") ?? "";
+      const originalPriceStr = origMatch?.[1]?.trim() ?? "";
+      const finalPriceStr = finalMatch?.[1]?.trim() ?? "";
 
       const discountPercent = parseInt(discountPctStr) || 0;
       const originalCents = parseSteamPrice(originalPriceStr);
       const discountedCents = parseSteamPrice(finalPriceStr);
 
       if (!originalCents && !discountedCents) continue;
+      foundOnPage++;
 
       yield {
         id: appId,
@@ -147,12 +162,6 @@ async function* fetchSteamDeals(
         discountEndAt: null,
       };
     }
-
-    // Also try simpler format (some results show differently)
-    const simpleRegex =
-      /data-ds-appid="(\d+)"[\s\S]*?<span class="title">([^<]+)<\/span>/g;
-    // Only process entries we haven't seen yet
-    simpleRegex.lastIndex = 0;
 
     const totalCount = data?.total_count ?? 0;
     if (start + pageSize >= totalCount || foundOnPage === 0) break;

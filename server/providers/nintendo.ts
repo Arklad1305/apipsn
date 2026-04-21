@@ -86,14 +86,19 @@ interface AlgoliaHit {
   title: string;
   nsuid?: string;
   url?: string;
-  horizontalHeaderImage?: string;
-  boxart?: string;
+  productImageSquare?: string;
+  productImage?: string;
   platform?: string;
-  msrp?: number;
-  salePrice?: number;
-  lowestPrice?: number;
-  percentOff?: number;
-  availability?: string[];
+  price?: {
+    regPrice?: number;
+    salePrice?: number;
+    percentOff?: number;
+    discounted?: boolean;
+  };
+  eshopDetails?: {
+    discountPriceEnd?: string;
+    currency?: string;
+  };
 }
 
 async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
@@ -106,8 +111,8 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       `query=`,
       `hitsPerPage=${pageSize}`,
       `page=${page}`,
-      `facetFilters=[["availability:On sale"]]`,
-      `facets=["platform","availability"]`,
+      `filters=price.discounted:true`,
+      `facets=["platform"]`,
     ].join("&");
 
     let data: any;
@@ -132,15 +137,18 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
       const name = hit.title;
       if (!name || !id) continue;
 
-      const msrp = hit.msrp;
-      const sale = hit.salePrice ?? hit.lowestPrice;
-      if (msrp == null && sale == null) continue;
+      const price = hit.price;
+      if (!price) continue;
 
-      const originalCents = msrp != null ? Math.round(msrp * 100) : null;
+      const regPrice = price.regPrice;
+      const salePrice = price.salePrice;
+      if (regPrice == null && salePrice == null) continue;
+
+      const originalCents = regPrice != null ? Math.round(regPrice * 100) : null;
       const discountedCents =
-        sale != null ? Math.round(sale * 100) : originalCents;
+        salePrice != null ? Math.round(salePrice * 100) : originalCents;
 
-      let discountPercent = hit.percentOff ?? 0;
+      let discountPercent = price.percentOff ?? 0;
       if (
         !discountPercent &&
         originalCents &&
@@ -152,7 +160,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
         );
       }
 
-      const imageUrl = hit.horizontalHeaderImage || hit.boxart || null;
+      const imageUrl = hit.productImageSquare || hit.productImage || null;
       const storeUrl = hit.url
         ? `https://www.nintendo.com${hit.url}`
         : `https://www.nintendo.com/us/store/products/${id}/`;
@@ -167,7 +175,7 @@ async function* fetchNintendoUS(): AsyncGenerator<RawDeal> {
         priceOriginalCents: originalCents,
         priceDiscountedCents: discountedCents,
         discountPercent,
-        discountEndAt: null,
+        discountEndAt: hit.eshopDetails?.discountPriceEnd || null,
       };
     }
 
