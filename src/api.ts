@@ -154,6 +154,18 @@ export function removeFromWatchlist(id: string): Promise<{ removed: boolean }> {
 }
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
+export const exportJsonUrl = `${API}/games/export.json?only_selected=true`;
+
+export function enrichGames(platform?: string, limit?: number): Promise<{
+  enriched: number;
+  total: number;
+  results: Array<{ id: string; name: string; ok: boolean; error?: string }>;
+}> {
+  const body: Record<string, unknown> = {};
+  if (platform) body.platform = platform;
+  if (limit) body.limit = limit;
+  return req(`/games/enrich`, { method: "POST", body: JSON.stringify(body) });
+}
 
 export function refreshExchangeRate(): Promise<{
   updated: Record<string, number>;

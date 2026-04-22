@@ -2,18 +2,19 @@ interface Props {
   onRefresh: () => void;
   onRefreshCompetitors: () => void;
   onClear: () => void;
+  onEnrich?: () => void;
   exportHref: string;
+  exportJsonHref?: string;
   variant: "offers" | "watchlist" | "settings";
 }
 
-/** Contextual action bar. The primary "refresh" action sits on the offers tab;
- *  on watchlist we only expose refresh + export; on settings we hide it
- *  entirely because the save buttons live inside the page. */
 export function Toolbar({
   onRefresh,
   onRefreshCompetitors,
   onClear,
+  onEnrich,
   exportHref,
+  exportJsonHref,
   variant,
 }: Props) {
   if (variant === "settings") return null;
@@ -30,9 +31,22 @@ export function Toolbar({
           Actualizar competencia
         </button>
       )}
+      {variant === "offers" && onEnrich && (
+        <button
+          onClick={onEnrich}
+          title="Scrapea detalles del producto (ESRB, jugadores, imágenes) para juegos seleccionados"
+        >
+          Enriquecer datos
+        </button>
+      )}
       <a className="button" href={exportHref} target="_blank" rel="noopener">
-        Exportar CSV
+        CSV
       </a>
+      {variant === "offers" && exportJsonHref && (
+        <a className="button" href={exportJsonHref} target="_blank" rel="noopener" title="JSON con datos enriquecidos para Supabase">
+          JSON
+        </a>
+      )}
       {variant === "offers" && (
         <button className="danger" onClick={onClear} title="Desactivar todos los juegos">
           Vaciar

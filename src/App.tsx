@@ -3,7 +3,9 @@ import { animateSlideIn } from "./anim";
 import {
   addToWatchlist,
   clearAll,
+  enrichGames,
   exportCsvUrl,
+  exportJsonUrl,
   fetchGames,
   getSettings,
   refresh,
@@ -158,6 +160,24 @@ export function App() {
     }
   };
 
+  const onEnrich = async () => {
+    setStatusKind("info");
+    setStatusMsg("Enriqueciendo datos de juegos seleccionados (PSN)…");
+    try {
+      const r = await enrichGames("psn", 20);
+      setStatusKind(r.enriched > 0 ? "ok" : "info");
+      const errors = r.results.filter((x) => !x.ok);
+      setStatusMsg(
+        `${r.enriched}/${r.total} juegos enriquecidos` +
+        (errors.length ? ` · ${errors.length} errores` : "") +
+        (r.total === 0 ? " · Selecciona juegos PSN primero" : "")
+      );
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    }
+  };
+
   const onClear = async () => {
     if (!confirm("¿Desactivar todos los juegos?")) return;
     try {
@@ -242,7 +262,9 @@ export function App() {
           onRefresh={onRefresh}
           onRefreshCompetitors={onRefreshCompetitors}
           onClear={onClear}
+          onEnrich={onEnrich}
           exportHref={exportCsvUrl}
+          exportJsonHref={exportJsonUrl}
           variant={
             detailGame
               ? "offers"

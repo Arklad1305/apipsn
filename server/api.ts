@@ -499,6 +499,124 @@ route("GET", "/games/export.csv", async (req, res) => {
   res.end(bom + content);
 });
 
+// GET /games/export.json — Supabase-ready JSON export with enriched product details
+// Params: only_selected=true|false, platform=psn|xbox|..., enrich=true (include product detail if cached)
+route("GET", "/games/export.json", async (req, res) => {
+  const url = new URL(req.url || "/", "http://x");
+  const onlySelected = url.searchParams.get("only_selected") !== "false";
+  const enrich = url.searchParams.get("enrich") !== "false";
+  const platformFilter = url.searchParams.get("platform") || "";
+
+  let games = store.listGames().filter((g) => g.active);
+  if (onlySelected) games = games.filter((g) => g.selected);
+  if (platformFilter) games = games.filter((g) => g.platform === platformFilter);
+  const cfg = store.getSettings();
+
+  const rows = games.map((g) => {
+    const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
+    const detail = enrich ? store.getProductDetail(g.id) : undefined;
+    const dbKey = `${g.platform}:${g.region}:${g.id}`;
+    const matches = store.getCompetitorMatches(dbKey) || store.getCompetitorMatches(g.id);
+
+    return {
+      // Core identification
+      id: g.id,
+      db_key: dbKey,
+      platform: g.platform,
+      region: g.region,
+      currency: g.currency || "USD",
+
+      // Basic info
+      name: g.name,
+      image_url: g.imageUrl,
+      store_url: g.storeUrl,
+      hardware_platforms: g.platforms,
+
+      // Pricing
+      price_original: g.priceOriginalCents != null ? g.priceOriginalCents / 100 : null,
+      price_discounted: g.priceDiscountedCents != null ? g.priceDiscountedCents / 100 : null,
+      discount_percent: g.discountPercent,
+      discount_end_at: g.discountEndAt || detail?.discountEndAt || null,
+
+      // CLP pricing
+      cost_clp: sale?.costClp ?? null,
+      primaria1_clp: sale?.primaria1 ?? null,
+      primaria2_clp: sale?.primaria2 ?? null,
+      secundaria_clp: sale?.secundaria ?? null,
+
+      // Enriched detail (from product page scrape)
+      description: detail?.description ?? null,
+      short_description: detail?.shortDescription ?? null,
+      publisher: detail?.publisher ?? null,
+      developer: detail?.developer ?? null,
+      release_date: detail?.releaseDate ?? null,
+      genres: detail?.genres ?? [],
+      age_rating: detail?.ageRating ?? null,
+      content_descriptors: detail?.contentDescriptors ?? [],
+      interactive_elements: detail?.interactiveElements ?? [],
+      player_count: detail?.playerCount ?? null,
+      online_player_count: detail?.onlinePlayerCount ?? null,
+      ps_plus_required: detail?.psPlusRequired ?? false,
+      in_game_purchases: detail?.inGamePurchases ?? null,
+      game_features: detail?.gameFeatures ?? [],
+      ps_version: detail?.psVersion ?? null,
+      file_size: detail?.fileSize ?? null,
+      voice_languages: detail?.voiceLanguages ?? [],
+      subtitle_languages: detail?.subtitleLanguages ?? [],
+
+      // Media
+      cover_url: detail?.media?.coverUrl ?? g.imageUrl,
+      hero_url: detail?.media?.heroUrl ?? null,
+      screenshots: detail?.media?.screenshots ?? [],
+      carousel_images: detail?.carouselImages ?? [],
+      videos: detail?.media?.videos ?? [],
+
+      // Competition
+      market_min_clp: matches.length ? Math.min(...matches.map((m) => m.priceClp)) : null,
+      market_count: matches.length,
+
+      // Status
+      selected: g.selected,
+      published: g.published,
+      notes: g.notes,
+      active: g.active,
+      first_seen_at: g.firstSeenAt,
+      last_seen_at: g.lastSeenAt,
+    };
+  });
+
+  sendJson(res, 200, { games: rows, exported_at: new Date().toISOString(), count: rows.length });
+});
+
+// POST /games/enrich — bulk-fetch product details for selected games that don't have them yet
+// Body: { platform?: string, limit?: number }
+route("POST", "/games/enrich", async (req, res) => {
+  const body = (await readBody(req)) as { platform?: string; limit?: number };
+  const limit = Math.min(body.limit ?? 20, 50);
+  const games = store.listGames().filter((g) => {
+    if (!g.active || !g.selected) return false;
+    if (body.platform && g.platform !== body.platform) return false;
+    if (store.getProductDetail(g.id)) return false;
+    return g.platform === "psn";
+  }).slice(0, limit);
+
+  const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
+  for (const g of games) {
+    try {
+      const cfg = store.getPsn();
+      const detail = await fetchProductDetail(g.id, g.storeUrl || "", cfg.region);
+      store.setProductDetail(g.id, detail);
+      results.push({ id: g.id, name: g.name, ok: true });
+    } catch (e) {
+      results.push({ id: g.id, name: g.name, ok: false, error: (e as Error).message });
+    }
+    // Rate-limit to avoid hammering PSN
+    await new Promise((res) => setTimeout(res, 500));
+  }
+
+  sendJson(res, 200, { enriched: results.filter((r) => r.ok).length, total: results.length, results });
+});
+
 // GET /settings
 route("GET", "/settings", async (_req, res) => {
   sendJson(res, 200, {

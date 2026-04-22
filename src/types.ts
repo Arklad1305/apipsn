@@ -166,10 +166,20 @@ export interface ProductDetail {
   voiceLanguages: string[];
   subtitleLanguages: string[];
   ageRating: string | null;
+  contentDescriptors: string[];
+  interactiveElements: string[];
+  playerCount: string | null;
+  onlinePlayerCount: string | null;
+  psPlusRequired: boolean;
+  inGamePurchases: string | null;
+  gameFeatures: string[];
+  psVersion: string | null;
   fileSize: string | null;
   platforms: string;
   media: ProductMedia;
+  carouselImages: string[];
   storeUrl: string;
+  discountEndAt: string | null;
   fetchedAt: string;
 }
 

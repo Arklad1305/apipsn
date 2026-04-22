@@ -36,10 +36,20 @@ export interface ProductDetail {
   voiceLanguages: string[];
   subtitleLanguages: string[];
   ageRating: string | null;
+  contentDescriptors: string[];
+  interactiveElements: string[];
+  playerCount: string | null;
+  onlinePlayerCount: string | null;
+  psPlusRequired: boolean;
+  inGamePurchases: string | null;
+  gameFeatures: string[];
+  psVersion: string | null;
   fileSize: string | null;
   platforms: string;
   media: ProductMedia;
+  carouselImages: string[];
   storeUrl: string;
+  discountEndAt: string | null;
   fetchedAt: string;
 }
 
@@ -267,6 +277,136 @@ function extractFileSizeFromHtml(html: string): string | null {
   return any ? `${any[1]} GB` : null;
 }
 
+function extractContentDescriptors(obj: Record<string, unknown>): string[] {
+  const cr = obj.contentRating as Record<string, unknown> | undefined;
+  if (cr?.contentDescriptors) return toStringArray(cr.contentDescriptors);
+  if (cr?.descriptions) return toStringArray(cr.descriptions);
+  return [];
+}
+
+function extractInteractiveElements(obj: Record<string, unknown>): string[] {
+  const cr = obj.contentRating as Record<string, unknown> | undefined;
+  if (cr?.interactiveElements) return toStringArray(cr.interactiveElements);
+  return [];
+}
+
+function extractGameFeatures(obj: Record<string, unknown>, html: string): string[] {
+  // From JSON: look for features, upsellFeatures, gameplayFeatures, etc.
+  const features: string[] = [];
+  for (const key of ["features", "upsellFeatures", "gameplayFeatures", "conceptFeatures"]) {
+    const v = obj[key];
+    if (v) features.push(...toStringArray(v));
+  }
+  if (features.length > 0) return features;
+
+  // From HTML: extract feature badges like "PS Plus required", "1 - 2 players", etc.
+  const featureRegex =
+    /data-qa="mfe[^"]*#checks?[^"]*"[^>]*>([^<]+)</gi;
+  let m;
+  while ((m = featureRegex.exec(html)) !== null) {
+    const text = m[1].trim();
+    if (text && !features.includes(text)) features.push(text);
+  }
+
+  // Alternative: extract from aria-label or text nodes near feature icons
+  const altRegex =
+    /class="[^"]*(?:game-feature|psw-c-t-3)[^"]*"[^>]*>([^<]{5,120})</gi;
+  while ((m = altRegex.exec(html)) !== null) {
+    const text = m[1].trim();
+    if (text && !features.includes(text)) features.push(text);
+  }
+
+  return features;
+}
+
+function extractPlayerInfo(obj: Record<string, unknown>, html: string): {
+  playerCount: string | null;
+  onlinePlayerCount: string | null;
+  psPlusRequired: boolean;
+  inGamePurchases: string | null;
+} {
+  let playerCount = str(obj.playerCount) || str(obj.localPlayerCount);
+  let onlinePlayerCount = str(obj.onlinePlayerCount);
+  let psPlusRequired = false;
+  let inGamePurchases: string | null = null;
+
+  // Parse from features/HTML text
+  const allText = html;
+  const playerMatch = /(\d+\s*-\s*\d+)\s*player/i.exec(allText);
+  if (!playerCount && playerMatch) playerCount = playerMatch[1].replace(/\s/g, "") + " players";
+
+  const onlineMatch = /supports?\s+up\s+to\s+(\d+)\s+online\s+players?/i.exec(allText);
+  if (!onlinePlayerCount && onlineMatch) onlinePlayerCount = `Up to ${onlineMatch[1]} online players`;
+
+  if (/ps\s*plus\s*required/i.test(allText)) psPlusRequired = true;
+
+  if (/in-game\s+purchases?\s+optional/i.test(allText)) inGamePurchases = "optional";
+  else if (/in-game\s+purchases/i.test(allText)) inGamePurchases = "yes";
+
+  return { playerCount, onlinePlayerCount, psPlusRequired, inGamePurchases };
+}
+
+function extractPsVersion(obj: Record<string, unknown>, html: string): string | null {
+  const classification = str(obj.localizedStoreDisplayClassification);
+  if (classification && /ps[45]/i.test(classification)) return classification;
+
+  // From HTML
+  const versionMatch = /(PS[45]\s+Version)/i.exec(html);
+  return versionMatch ? versionMatch[1] : null;
+}
+
+function extractDiscountEndAt(obj: Record<string, unknown>, html: string): string | null {
+  // From JSON: webctas price endTime
+  const webctas = obj.webctas as Array<{ price?: { endTime?: string } }> | undefined;
+  const endTime = webctas?.[0]?.price?.endTime;
+  if (endTime) return endTime;
+
+  const price = obj.price as Record<string, unknown> | undefined;
+  if (price?.endTime) return String(price.endTime);
+
+  // From HTML: "Offer ends 4/23/2026 02:59 a. m. CLT"
+  const offerMatch = /offer\s+ends?\s+(\d{1,2}\/\d{1,2}\/\d{4}[^<]*)/i.exec(html);
+  if (offerMatch) return offerMatch[1].trim();
+
+  return null;
+}
+
+function extractCarouselImages(obj: Record<string, unknown>, html: string): string[] {
+  const images: string[] = [];
+  const seen = new Set<string>();
+
+  // From JSON media: get all screenshot URLs
+  const media = (obj.media as Array<{ role?: string; url?: string }>) || [];
+  for (const m of media) {
+    const url = m?.url;
+    if (!url) continue;
+    const role = String(m?.role || "").toUpperCase();
+    if (role === "SCREENSHOT" || role === "PREVIEW" || role === "PREVIEW_IMAGE") {
+      if (!seen.has(url)) { seen.add(url); images.push(url); }
+    }
+  }
+
+  // From HTML: extract carousel image src/srcset
+  const imgRegex = /data-qa="mfe-media-carousel[^"]*"[^>]*src="([^"]+)"/gi;
+  let m;
+  while ((m = imgRegex.exec(html)) !== null) {
+    const url = m[1].replace(/&amp;/g, "&");
+    if (!seen.has(url)) { seen.add(url); images.push(url); }
+  }
+
+  // Also get high-res versions from srcset
+  const srcsetRegex = /data-qa="mfe-media-carousel[^"]*"[^>]*srcset="([^"]+)"/gi;
+  while ((m = srcsetRegex.exec(html)) !== null) {
+    const srcset = m[1].replace(/&amp;/g, "&");
+    const urls = srcset.split(",").map((s) => s.trim().split(/\s+/)[0]);
+    for (const url of urls) {
+      if (url && !seen.has(url)) { seen.add(url); images.push(url); }
+    }
+  }
+
+  return images;
+}
+
 export async function fetchProductDetail(
   id: string,
   storeUrl: string,
@@ -306,6 +446,8 @@ export async function fetchProductDetail(
     str(contentRating?.name) ||
     str(obj.ageLimit);
 
+  const playerInfo = extractPlayerInfo(obj, html);
+
   return {
     id,
     name: String(obj.name || obj.title || ""),
@@ -323,10 +465,20 @@ export async function fetchProductDetail(
       obj.subtitleLanguages || obj.compatibleSubtitles
     ),
     ageRating,
+    contentDescriptors: extractContentDescriptors(obj),
+    interactiveElements: extractInteractiveElements(obj),
+    playerCount: playerInfo.playerCount,
+    onlinePlayerCount: playerInfo.onlinePlayerCount,
+    psPlusRequired: playerInfo.psPlusRequired,
+    inGamePurchases: playerInfo.inGamePurchases,
+    gameFeatures: extractGameFeatures(obj, html),
+    psVersion: extractPsVersion(obj, html),
     fileSize,
     platforms,
     media: extractMedia(obj),
+    carouselImages: extractCarouselImages(obj, html),
     storeUrl: url,
+    discountEndAt: extractDiscountEndAt(obj, html),
     fetchedAt: new Date().toISOString(),
   };
 }
