@@ -546,6 +546,56 @@ input[type="checkbox"] {
   color: var(--text-dim);
 }
 
+.psplus-regions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.psplus-region {
+  display: grid;
+  grid-template-columns: 28px 70px 1fr;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.psplus-region-best {
+  background: rgba(70, 194, 103, 0.08);
+  border: 1px solid rgba(70, 194, 103, 0.18);
+}
+
+.psplus-region-flag {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.psplus-region-local {
+  color: var(--text-dim);
+}
+
+.psplus-region-clp {
+  text-align: right;
+  font-weight: 600;
+}
+
+.psplus-cheapest-tag {
+  font-size: 0.65rem;
+  color: var(--ok);
+  margin-left: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.psplus-matches-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
 .psplus-matches {
   display: flex;
   flex-direction: column;

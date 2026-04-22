@@ -185,13 +185,23 @@ export interface ProductDetail {
 
 export type PlusTier = "essential" | "extra" | "premium";
 export type PlusDuration = "1m" | "3m" | "12m";
+export type PlusRegion = "us" | "br" | "tr";
+
+export interface PlusRegionPrice {
+  region: PlusRegion;
+  currency: string;
+  price: number;
+  priceClp: number | null;
+}
 
 export interface PlusPlanWithMatches {
   tier: PlusTier;
   duration: PlusDuration;
   label: string;
-  officialPriceUsd: number | null;
-  officialPriceClp: number | null;
+  regionPrices: PlusRegionPrice[];
+  cheapestRegion: PlusRegion | null;
+  cheapestClp: number | null;
+  searchTerms: string[];
   competitorMatches: CompetitorMatchOut[];
   bestPrice: number | null;
   bestStore: string | null;

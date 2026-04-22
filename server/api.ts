@@ -771,7 +771,7 @@ route("POST", "/competitors/refresh", async (_req, res) => {
 route("GET", "/ps-plus", async (_req, res) => {
   const cfg = store.getSettings();
   const products = store.getAllCompetitorProducts();
-  const plans = matchPlansWithCompetitors(products, cfg.usdToClp);
+  const plans = matchPlansWithCompetitors(products, cfg);
   sendJson(res, 200, { plans });
 });
 
