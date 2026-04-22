@@ -168,8 +168,16 @@ export function enrichGames(platform?: string, limit?: number): Promise<{
   return req(`/games/enrich`, { method: "POST", body: JSON.stringify(body) });
 }
 
-export function getPsPlus(): Promise<{ plans: PlusPlanWithMatches[] }> {
+export function getPsPlus(): Promise<{ plans: PlusPlanWithMatches[]; scrapedAt: string | null }> {
   return req(`/ps-plus`);
+}
+
+export function refreshPsPlusPrices(): Promise<{
+  prices: Record<string, Record<string, Record<string, number>>>;
+  scrapedAt: string;
+  errors: string[];
+}> {
+  return req(`/ps-plus/refresh`, { method: "POST" });
 }
 
 export function refreshExchangeRate(): Promise<{

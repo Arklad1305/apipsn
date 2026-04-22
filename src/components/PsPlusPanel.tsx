@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getPsPlus } from "../api";
+import { getPsPlus, refreshPsPlusPrices } from "../api";
 import type { PlusPlanWithMatches, PlusRegionPrice, PlusTier } from "../types";
 
 const fmtCLP = (n: number | null) =>
@@ -35,17 +35,53 @@ function fmtLocal(rp: PlusRegionPrice): string {
   return `${sym}${val}`;
 }
 
+function fmtDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
+
 export function PsPlusPanel() {
   const [plans, setPlans] = useState<PlusPlanWithMatches[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [scrapedAt, setScrapedAt] = useState<string | null>(null);
+  const [scrapeMsg, setScrapeMsg] = useState<string>("");
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     getPsPlus()
-      .then((r) => setPlans(r.plans))
+      .then((r) => {
+        setPlans(r.plans);
+        setScrapedAt(r.scrapedAt);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onRefreshPrices = async () => {
+    setRefreshing(true);
+    setScrapeMsg("");
+    try {
+      const result = await refreshPsPlusPrices();
+      setScrapedAt(result.scrapedAt);
+      if (result.errors.length) {
+        setScrapeMsg(`Precios actualizados con avisos: ${result.errors.join(" · ")}`);
+      } else {
+        setScrapeMsg("Precios actualizados desde playstation.com");
+      }
+      load();
+    } catch (e) {
+      setScrapeMsg(`Error: ${(e as Error).message}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) return <div className="loading">Cargando precios PS Plus…</div>;
   if (!plans.length) return <div className="empty">No hay datos de PS Plus. Actualiza la competencia primero.</div>;
@@ -54,10 +90,33 @@ export function PsPlusPanel() {
 
   return (
     <div className="psplus-panel">
-      <p className="psplus-hint">
-        Precios oficiales PSN en USD, BRL y TRY → CLP estimado. Se destaca la región más barata.
-        Competidores se actualizan con "Actualizar competencia".
-      </p>
+      <div className="psplus-toolbar">
+        <p className="psplus-hint">
+          Precios oficiales PSN en USD, BRL y TRY → CLP estimado. Se destaca la región más barata.
+        </p>
+        <div className="psplus-actions">
+          <button
+            className="btn btn-sm"
+            onClick={onRefreshPrices}
+            disabled={refreshing}
+          >
+            {refreshing ? "Actualizando…" : "Actualizar precios PSN"}
+          </button>
+          {scrapedAt && (
+            <span className="psplus-scraped-at muted">
+              Precios: {fmtDate(scrapedAt)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {scrapeMsg && (
+        <div className={`psplus-scrape-msg ${scrapeMsg.startsWith("Error") ? "err" : "ok"}`}>
+          {scrapeMsg}
+          <button className="link" onClick={() => setScrapeMsg("")}>✕</button>
+        </div>
+      )}
+
       <div className="psplus-grid">
         {tiers.map((tier) => {
           const tierPlans = plans.filter((p) => p.tier === tier);

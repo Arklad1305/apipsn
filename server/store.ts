@@ -84,6 +84,12 @@ interface DbShape {
   watchlist: Record<string, WatchedGame>;
   /** 0 = disabled. Stored separately so it survives settings resets. */
   autoRefreshIntervalHours: number;
+  /** Scraped PS Plus prices, persisted so they survive restarts. */
+  psPlusPrices: {
+    prices: Record<string, Record<string, Record<string, number>>>;
+    scrapedAt: string;
+    errors: string[];
+  } | null;
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -206,6 +212,7 @@ function buildDb(parsed: Partial<DbShape>): DbShape {
     productDetails: parsed.productDetails ?? {},
     watchlist: parsed.watchlist ?? {},
     autoRefreshIntervalHours: parsed.autoRefreshIntervalHours ?? 0,
+    psPlusPrices: parsed.psPlusPrices ?? null,
   };
 }
 
@@ -222,6 +229,7 @@ function emptyDb(): DbShape {
     productDetails: {},
     watchlist: {},
     autoRefreshIntervalHours: 0,
+    psPlusPrices: null,
   };
 }
 
@@ -428,6 +436,13 @@ export const store = {
   },
   setAutoRefreshInterval(hours: number): void {
     db.autoRefreshIntervalHours = Math.max(0, hours);
+    scheduleSave();
+  },
+  getPsPlusPrices(): DbShape["psPlusPrices"] {
+    return db.psPlusPrices;
+  },
+  setPsPlusPrices(data: DbShape["psPlusPrices"]): void {
+    db.psPlusPrices = data;
     scheduleSave();
   },
   flush(): void {

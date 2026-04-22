@@ -492,10 +492,52 @@ input[type="checkbox"] {
   padding: 8px 0;
 }
 
+.psplus-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.psplus-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.psplus-scraped-at {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.psplus-scrape-msg {
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.psplus-scrape-msg.ok {
+  background: rgba(70, 194, 103, 0.1);
+  color: var(--ok);
+}
+
+.psplus-scrape-msg.err {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--err);
+}
+
 .psplus-hint {
   color: var(--muted);
   font-size: 0.82rem;
-  margin-bottom: 16px;
+  margin: 0;
 }
 
 .psplus-grid {

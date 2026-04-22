@@ -36,7 +36,8 @@ import {
 import type { Platform, ProviderSource } from "./providers/types";
 import { fetchExchangeRates } from "./exchange";
 import { getLastAutoRefreshAt, reschedule, startScheduler } from "./scheduler";
-import { matchPlansWithCompetitors } from "./ps-plus";
+import { matchPlansWithCompetitors, scrapePsPlusPrices } from "./ps-plus";
+import type { ScrapedPlusPrices } from "./ps-plus";
 
 /** Extract a PSN product id from a store URL. Accepts both en-US and other
  *  locales, and tolerates trailing segments / query strings. */
@@ -771,8 +772,20 @@ route("POST", "/competitors/refresh", async (_req, res) => {
 route("GET", "/ps-plus", async (_req, res) => {
   const cfg = store.getSettings();
   const products = store.getAllCompetitorProducts();
-  const plans = matchPlansWithCompetitors(products, cfg);
-  sendJson(res, 200, { plans });
+  const scraped = store.getPsPlusPrices() as ScrapedPlusPrices | null;
+  const plans = matchPlansWithCompetitors(products, cfg, scraped);
+  sendJson(res, 200, { plans, scrapedAt: scraped?.scrapedAt ?? null });
+});
+
+// POST /ps-plus/refresh — scrape current PS Plus prices from playstation.com
+route("POST", "/ps-plus/refresh", async (_req, res) => {
+  try {
+    const result = await scrapePsPlusPrices();
+    store.setPsPlusPrices(result);
+    sendJson(res, 200, result);
+  } catch (e) {
+    sendJson(res, 500, { error: "scrape_failed", message: (e as Error).message });
+  }
 });
 
 // GET /debug/product-types — one-shot reconnaissance used to design the
