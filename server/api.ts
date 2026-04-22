@@ -546,10 +546,12 @@ route("GET", "/games/export-supabase.csv", async (req, res) => {
       .join("-");
     const sku = `PS-${slug}-001`;
 
-    // Images: [{alt, url}]
+    // Images: [{alt, url}] — portrait (box art) first, then carousel/screenshots
     const images: Array<{ alt: string; url: string }> = [];
-    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
-    if (coverUrl) images.push({ alt: g.name, url: coverUrl });
+    const portraitUrl = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl) images.push({ alt: g.name, url: portraitUrl });
+    const coverUrl = detail?.media?.coverUrl;
+    if (coverUrl && coverUrl !== portraitUrl) images.push({ alt: g.name, url: coverUrl });
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {
         if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
@@ -668,7 +670,8 @@ route("GET", "/games/export.json", async (req, res) => {
       subtitle_languages: detail?.subtitleLanguages ?? [],
 
       // Media
-      cover_url: detail?.media?.coverUrl ?? g.imageUrl,
+      portrait_url: detail?.media?.portraitUrl ?? g.imageUrl,
+      cover_url: detail?.media?.coverUrl ?? null,
       hero_url: detail?.media?.heroUrl ?? null,
       screenshots: detail?.media?.screenshots ?? [],
       carousel_images: detail?.carouselImages ?? [],
@@ -723,8 +726,10 @@ route("GET", "/games/export-supabase", async (req, res) => {
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
     const images: Array<{ alt: string; url: string }> = [];
-    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
-    if (coverUrl) images.push({ alt: g.name, url: coverUrl });
+    const portraitUrl2 = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl2) images.push({ alt: g.name, url: portraitUrl2 });
+    const coverUrl2 = detail?.media?.coverUrl;
+    if (coverUrl2 && coverUrl2 !== portraitUrl2) images.push({ alt: g.name, url: coverUrl2 });
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {
         if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });

@@ -20,6 +20,7 @@ export interface ProductMedia {
   logoUrl: string | null;
   backgroundUrl: string | null;
   coverUrl: string | null;
+  portraitUrl: string | null;
   screenshots: string[];
   videos: Array<{ url: string; posterUrl: string | null; mimeType: string | null }>;
 }
@@ -200,6 +201,11 @@ function extractMedia(obj: Record<string, unknown>): ProductMedia {
       byRole["BOXART"] ||
       byRole["GAMEHUB_COVER_ART"] ||
       byRole["PREVIEW_GAME_ART"] ||
+      null,
+    portraitUrl:
+      byRole["PORTRAIT_BANNER"] ||
+      byRole["GAMEHUB_COVER_ART"] ||
+      byRole["BOXART"] ||
       null,
     screenshots: [...new Set(screenshots)],
     videos,

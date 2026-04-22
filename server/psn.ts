@@ -169,16 +169,26 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
   const name = raw.name || raw.title || "";
   if (!name) return null;
 
-  // Image: prefer hero/master/boxart if available.
+  // Image: prefer portrait/cover art (the vertical box art shown in the store grid).
+  // Fallback to master/hero if no portrait available.
   let imageUrl: string | null = null;
   const media = raw.media || [];
+  const preferredPortrait = ["PORTRAIT_BANNER", "GAMEHUB_COVER_ART", "BOXART"];
+  const fallbackRoles = ["MASTER", "PREVIEW_GAME_ART"];
   for (const m of media) {
     const role = String(m?.role || "").toUpperCase();
-    if (
-      ["MASTER", "PREVIEW_GAME_ART", "BOXART", "GAMEHUB_COVER_ART"].includes(role)
-    ) {
+    if (preferredPortrait.includes(role)) {
       imageUrl = m.url ?? null;
       if (imageUrl) break;
+    }
+  }
+  if (!imageUrl) {
+    for (const m of media) {
+      const role = String(m?.role || "").toUpperCase();
+      if (fallbackRoles.includes(role)) {
+        imageUrl = m.url ?? null;
+        if (imageUrl) break;
+      }
     }
   }
   if (!imageUrl && media[0]?.url) imageUrl = media[0].url;

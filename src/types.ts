@@ -150,6 +150,7 @@ export interface ProductMedia {
   logoUrl: string | null;
   backgroundUrl: string | null;
   coverUrl: string | null;
+  portraitUrl: string | null;
   screenshots: string[];
   videos: Array<{ url: string; posterUrl: string | null; mimeType: string | null }>;
 }
