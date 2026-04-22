@@ -104,7 +104,10 @@ export function GamesTable({
                     )}
                   </td>
                   <td>
-                    <span className={`platform-badge platform-${g.platform || "psn"}`} title={`${g.platform?.toUpperCase()} ${regionLabel}`}>
+                    <span
+                      className={`platform-badge platform-${g.platform || "psn"}`}
+                      title={`${g.platform?.toUpperCase()} ${regionLabel} · ${cur}`}
+                    >
                       {platformIcon}
                       {regionLabel ? <span className="region-tag">{regionLabel}</span> : null}
                     </span>
@@ -120,7 +123,7 @@ export function GamesTable({
                     {g.notes && <div className="notes">{g.notes}</div>}
                   </td>
                   <td>{g.platforms}</td>
-                  <td>
+                  <td title={cur !== "USD" ? `Precio en ${cur}` : undefined}>
                     {g.priceOriginal != null &&
                       g.priceOriginal !== g.priceDiscounted && (
                         <s className="muted">{fmtPrice(g.priceOriginal, cur)}</s>

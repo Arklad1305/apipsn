@@ -155,6 +155,14 @@ export function removeFromWatchlist(id: string): Promise<{ removed: boolean }> {
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
 
+export function refreshExchangeRate(): Promise<{
+  updated: Record<string, number>;
+  fetchedAt: string;
+  errors: string[];
+}> {
+  return req(`/exchange/refresh`, { method: "POST" });
+}
+
 export function getDebugStatus(): Promise<{
   totalGames: number;
   activeGames: number;

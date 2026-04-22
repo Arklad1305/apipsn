@@ -478,6 +478,15 @@ input[type="checkbox"] {
   cursor: not-allowed;
 }
 
+/* Exchange rate update bar */
+.tc-update-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  flex-wrap: wrap;
+}
+
 /* Sources grid in settings */
 .sources-list {
   display: flex;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCompetitors, putCompetitors, putSettings } from "../api";
+import { getCompetitors, putCompetitors, putSettings, refreshExchangeRate } from "../api";
 import type {
   CompetitorStatus,
   CompetitorType,
@@ -43,6 +43,8 @@ export function SettingsPanel({ initial, onSaved }: Props) {
   const [sources, setSources] = useState<ProviderSource[]>(initial.sources || []);
   const [competitors, setCompetitors] = useState<CompetitorStatus[]>([]);
   const [saving, setSaving] = useState(false);
+  const [tcUpdating, setTcUpdating] = useState(false);
+  const [tcMsg, setTcMsg] = useState<string>("");
   const [active, setActive] = useState<SectionId>("pricing");
 
   const refs = {
@@ -83,6 +85,24 @@ export function SettingsPanel({ initial, onSaved }: Props) {
       onSaved(r);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateTc = async () => {
+    setTcUpdating(true);
+    setTcMsg("");
+    try {
+      const r = await refreshExchangeRate();
+      if (r.updated.usdToClp) {
+        setPricing((p) => ({ ...p, usdToClp: r.updated.usdToClp }));
+        setTcMsg(`USD actualizado: ${r.updated.usdToClp} CLP (${r.fetchedAt.slice(0, 10)})`);
+      } else {
+        setTcMsg(r.errors.join(" · ") || "No se pudo obtener el tipo de cambio");
+      }
+    } catch (e) {
+      setTcMsg((e as Error).message);
+    } finally {
+      setTcUpdating(false);
     }
   };
 
@@ -168,6 +188,20 @@ export function SettingsPanel({ initial, onSaved }: Props) {
               <code>venta = cost × multiplicador</code>, redondeado.
             </p>
           </header>
+          <div className="tc-update-bar">
+            <button
+              type="button"
+              className="secondary"
+              onClick={updateTc}
+              disabled={tcUpdating}
+            >
+              {tcUpdating ? "Consultando…" : "Actualizar TC"}
+            </button>
+            {tcMsg && <span className="field-hint">{tcMsg}</span>}
+            <span className="muted" style={{ marginLeft: "auto", fontSize: "0.75rem" }}>
+              Fuente: mindicador.cl · Solo USD disponible
+            </span>
+          </div>
           <div className="field-grid">
             {numField("usdToClp", "USD → CLP", "Dólar estadounidense", 1)}
             {numField("brlToClp", "BRL → CLP", "Real brasileño", 0.1)}
@@ -343,6 +377,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
                   <option value="auto">auto-detectar</option>
                   <option value="shopify">Shopify</option>
                   <option value="woocommerce">WooCommerce</option>
+                  <option value="jumpseller">Jumpseller</option>
                   <option value="html">HTML (sitemap + JSON-LD)</option>
                 </select>
                 <span className="muted">

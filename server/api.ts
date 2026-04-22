@@ -34,6 +34,7 @@ import {
   ProviderError,
 } from "./providers/index";
 import type { Platform, ProviderSource } from "./providers/types";
+import { fetchExchangeRates } from "./exchange";
 
 /** Extract a PSN product id from a store URL. Accepts both en-US and other
  *  locales, and tolerates trailing segments / query strings. */
@@ -411,9 +412,12 @@ route("POST", "/refresh", async (req, res) => {
 });
 
 // GET /games/export.csv
+// Params: only_selected=true|false, format=sheets (BOM + semicolons for Google Sheets)
 route("GET", "/games/export.csv", async (req, res) => {
   const url = new URL(req.url || "/", "http://x");
   const onlySelected = url.searchParams.get("only_selected") !== "false";
+  const sheetsFormat = url.searchParams.get("format") === "sheets";
+  const sep = sheetsFormat ? ";" : ",";
 
   let games = store.listGames().filter((g) => g.active);
   if (onlySelected) games = games.filter((g) => g.selected);
@@ -421,31 +425,50 @@ route("GET", "/games/export.csv", async (req, res) => {
 
   const header = [
     "id",
+    "plataforma",
+    "region",
+    "moneda",
     "name",
     "platforms",
     "store_url",
-    "price_original_usd",
-    "price_discounted_usd",
-    "discount_percent",
-    "discount_end_at",
-    "cost_clp",
+    "precio_original",
+    "precio_descuento",
+    "descuento_pct",
+    "fin_oferta",
+    "costo_clp",
     "primaria_1_clp",
     "primaria_2_clp",
     "secundaria_clp",
-    "notes",
+    "margen_primaria1_pct",
+    "margen_secundaria_pct",
+    "notas",
   ];
 
   const escape = (v: unknown) => {
     const s = v == null ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    const needsQuote = s.includes(sep) || s.includes('"') || s.includes("\n");
+    return needsQuote ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  const lines = [header.join(",")];
+  const now = new Date().toISOString().slice(0, 10);
+  const metadata = sheetsFormat
+    ? `# Exportado: ${now} · TC USD: ${cfg.usdToClp} · BRL: ${cfg.brlToClp} · TRY: ${cfg.tryToClp}\n`
+    : "";
+
+  const lines = [header.join(sep)];
   for (const g of games) {
-    const sale = computeSalePrices(g.priceDiscountedCents, cfg);
+    const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
+    const cost = sale?.costClp ?? null;
+    const p1 = sale?.primaria1 ?? null;
+    const sec = sale?.secundaria ?? null;
+    const margenP1 = cost && p1 ? Math.round(((p1 - cost) / cost) * 100) : "";
+    const margenSec = cost && sec ? Math.round(((sec - cost) / cost) * 100) : "";
     lines.push(
       [
         g.id,
+        g.platform || "psn",
+        g.region || "us",
+        g.currency || "USD",
         g.name,
         g.platforms,
         g.storeUrl ?? "",
@@ -453,21 +476,26 @@ route("GET", "/games/export.csv", async (req, res) => {
         g.priceDiscountedCents != null ? (g.priceDiscountedCents / 100).toFixed(2) : "",
         g.discountPercent,
         g.discountEndAt ?? "",
-        sale?.costClp ?? "",
-        sale?.primaria1 ?? "",
+        cost ?? "",
+        p1 ?? "",
         sale?.primaria2 ?? "",
-        sale?.secundaria ?? "",
+        sec ?? "",
+        margenP1,
+        margenSec,
         g.notes,
       ]
         .map(escape)
-        .join(",")
+        .join(sep)
     );
   }
+
+  const content = metadata + lines.join("\n");
+  const bom = sheetsFormat ? "﻿" : "";
 
   res.statusCode = 200;
   res.setHeader("content-type", "text/csv; charset=utf-8");
   res.setHeader("content-disposition", 'attachment; filename="apipsn-games.csv"');
-  res.end(lines.join("\n"));
+  res.end(bom + content);
 });
 
 // GET /settings
@@ -689,6 +717,25 @@ route("DELETE", "/watchlist/:id", async (_req, res, params) => {
 route("GET", "/games/:id/matches", async (_req, res, params) => {
   const matches: CompetitorMatch[] = store.getCompetitorMatches(params.id);
   sendJson(res, 200, { matches });
+});
+
+// POST /exchange/refresh — fetch latest USD→CLP from mindicador.cl and save
+route("POST", "/exchange/refresh", async (_req, res) => {
+  try {
+    const rates = await fetchExchangeRates();
+    const patch: Record<string, number> = {};
+    if (rates.usdToClp != null) patch.usdToClp = Math.round(rates.usdToClp);
+    if (Object.keys(patch).length > 0) {
+      store.updateSettings(patch);
+    }
+    sendJson(res, 200, {
+      updated: patch,
+      fetchedAt: rates.fetchedAt,
+      errors: rates.errors,
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: "exchange_error", message: (e as Error).message });
+  }
 });
 
 // GET /debug/status — diagnostic snapshot of system health
