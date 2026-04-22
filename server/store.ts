@@ -82,6 +82,8 @@ interface DbShape {
   competitorRefreshedAt: Record<string, string>;
   productDetails: Record<string, ProductDetail>;
   watchlist: Record<string, WatchedGame>;
+  /** 0 = disabled. Stored separately so it survives settings resets. */
+  autoRefreshIntervalHours: number;
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -203,6 +205,7 @@ function buildDb(parsed: Partial<DbShape>): DbShape {
     competitorRefreshedAt: parsed.competitorRefreshedAt ?? {},
     productDetails: parsed.productDetails ?? {},
     watchlist: parsed.watchlist ?? {},
+    autoRefreshIntervalHours: parsed.autoRefreshIntervalHours ?? 0,
   };
 }
 
@@ -218,6 +221,7 @@ function emptyDb(): DbShape {
     competitorRefreshedAt: {},
     productDetails: {},
     watchlist: {},
+    autoRefreshIntervalHours: 0,
   };
 }
 
@@ -418,6 +422,13 @@ export const store = {
     db.sources = list.map((s) => ({ ...s }));
     scheduleSave();
     return db.sources.map((s) => ({ ...s }));
+  },
+  getAutoRefreshInterval(): number {
+    return db.autoRefreshIntervalHours ?? 0;
+  },
+  setAutoRefreshInterval(hours: number): void {
+    db.autoRefreshIntervalHours = Math.max(0, hours);
+    scheduleSave();
   },
   flush(): void {
     if (saveTimer) clearTimeout(saveTimer);

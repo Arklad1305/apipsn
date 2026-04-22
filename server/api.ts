@@ -35,6 +35,7 @@ import {
 } from "./providers/index";
 import type { Platform, ProviderSource } from "./providers/types";
 import { fetchExchangeRates } from "./exchange";
+import { getLastAutoRefreshAt, reschedule, startScheduler } from "./scheduler";
 
 /** Extract a PSN product id from a store URL. Accepts both en-US and other
  *  locales, and tolerates trailing segments / query strings. */
@@ -536,6 +537,49 @@ route("POST", "/mock/clear", async (_req, res) => {
   sendJson(res, 200, { cleared: games.length });
 });
 
+async function runRefresh(): Promise<void> {
+  const sources = store.getSources().filter((s) => s.enabled);
+  const nowIso = new Date().toISOString();
+  for (const source of sources) {
+    try {
+      const provider = getProvider(source.platform);
+      const seenKeys = new Set<string>();
+      const effSource = { ...source };
+      if (source.platform === "psn" && !source.categoryId) {
+        effSource.categoryId = store.getPsn().dealsCategoryId;
+      }
+      for await (const deal of provider.fetchDeals(effSource)) {
+        const dbKey = `${source.platform}:${source.region}:${deal.id}`;
+        seenKeys.add(dbKey);
+        const existing = store.getGameByComposite(source.platform, source.region, deal.id);
+        if (!existing) {
+          store.upsertGame({
+            id: deal.id, platform: source.platform, region: source.region,
+            name: deal.name, imageUrl: deal.imageUrl, storeUrl: deal.storeUrl,
+            platforms: deal.hardwarePlatforms, currency: deal.currency,
+            priceOriginalCents: deal.priceOriginalCents, priceDiscountedCents: deal.priceDiscountedCents,
+            discountPercent: deal.discountPercent, discountEndAt: deal.discountEndAt,
+            selected: false, published: false, notes: "", youtubeUrl: "", active: true,
+            firstSeenAt: nowIso, lastSeenAt: nowIso, updatedAt: nowIso,
+          });
+        } else {
+          store.upsertGame({
+            ...existing, name: deal.name || existing.name, imageUrl: deal.imageUrl || existing.imageUrl,
+            storeUrl: deal.storeUrl || existing.storeUrl, platforms: deal.hardwarePlatforms,
+            currency: deal.currency, priceOriginalCents: deal.priceOriginalCents,
+            priceDiscountedCents: deal.priceDiscountedCents, discountPercent: deal.discountPercent,
+            discountEndAt: deal.discountEndAt, active: true, lastSeenAt: nowIso, updatedAt: nowIso,
+          });
+        }
+      }
+      store.markInactiveIfMissing(seenKeys, source.platform, source.region);
+    } catch (e) {
+      console.error(`[scheduler][${source.platform}/${source.region}] ${(e as Error).message}`);
+    }
+  }
+  recomputeMatches();
+}
+
 function recomputeMatches(): void {
   const games = store.listGames().filter((g) => g.active);
   const products = store.getAllCompetitorProducts();
@@ -771,9 +815,27 @@ route("GET", "/debug/status", async (_req, res) => {
     gamesByPlatform,
     sources,
     competitors: competitorStatus,
+    autoRefreshIntervalHours: store.getAutoRefreshInterval(),
+    lastAutoRefreshAt: getLastAutoRefreshAt(),
     dbSizeKb: null,
   });
 });
+
+// PUT /scheduler — enable/disable periodic auto-refresh
+// Body: { intervalHours: number }  (0 = disabled)
+route("PUT", "/scheduler", async (req, res) => {
+  const body = (await readBody(req)) as { intervalHours?: number };
+  const hours = Number(body.intervalHours ?? 0);
+  if (!Number.isFinite(hours) || hours < 0) {
+    return sendJson(res, 400, { error: "bad_request", message: "intervalHours must be >= 0" });
+  }
+  store.setAutoRefreshInterval(hours);
+  reschedule(runRefresh);
+  sendJson(res, 200, { intervalHours: store.getAutoRefreshInterval() });
+});
+
+// Start scheduler if configured
+startScheduler(runRefresh);
 
 export async function handleRequest(
   req: IncomingMessage,
