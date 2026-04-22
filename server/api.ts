@@ -536,6 +536,32 @@ route("GET", "/games/export-supabase.csv", async (req, res) => {
     const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
     const detail = store.getProductDetail(g.id);
 
+    // SKU: PS-SLUG-001
+    const slug = g.name
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, "")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 4)
+      .join("-");
+    const sku = `PS-${slug}-001`;
+
+    // Images: [{alt, url}]
+    const images: Array<{ alt: string; url: string }> = [];
+    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
+    if (coverUrl) images.push({ alt: g.name, url: coverUrl });
+    if (detail?.carouselImages) {
+      for (const img of detail.carouselImages) {
+        if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
+      }
+    }
+    if (detail?.media?.screenshots) {
+      for (const img of detail.media.screenshots) {
+        if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
+      }
+    }
+
+    // Platform availability: {PS4: true, PS5: true}
     const hwPlatforms = (g.platforms || "")
       .split(",")
       .map((p) => p.trim())
@@ -543,30 +569,20 @@ route("GET", "/games/export-supabase.csv", async (req, res) => {
     const platformAvailability: Record<string, boolean> = {};
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
-    const images: string[] = [];
-    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
-    if (coverUrl) images.push(coverUrl);
-    if (detail?.carouselImages) {
-      for (const img of detail.carouselImages) {
-        if (!images.includes(img)) images.push(img);
-      }
+    // Pricing: per hardware platform × account type
+    const primaria = sale?.primaria1 ?? null;
+    const secundaria = sale?.secundaria ?? null;
+    const pricing: Record<string, Record<string, number | null>> = {};
+    for (const p of hwPlatforms.length ? hwPlatforms : ["PS4"]) {
+      pricing[p] = {
+        Primaria: primaria,
+        Secundaria: secundaria,
+      };
     }
-    if (detail?.media?.screenshots) {
-      for (const img of detail.media.screenshots) {
-        if (!images.includes(img)) images.push(img);
-      }
-    }
-
-    const pricing: Record<string, number | null> = {
-      primaria_1: sale?.primaria1 ?? null,
-      primaria_2: sale?.primaria2 ?? null,
-      secundaria: sale?.secundaria ?? null,
-      cost_clp: sale?.costClp ?? null,
-    };
 
     lines.push(
       [
-        `${g.platform}:${g.region}:${g.id}`,
+        sku,
         g.name,
         JSON.stringify(images),
         JSON.stringify(platformAvailability),
@@ -690,6 +706,15 @@ route("GET", "/games/export-supabase", async (req, res) => {
     const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
     const detail = store.getProductDetail(g.id);
 
+    const slug = g.name
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, "")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 4)
+      .join("-");
+    const sku = `PS-${slug}-001`;
+
     const hwPlatforms = (g.platforms || "")
       .split(",")
       .map((p) => p.trim())
@@ -697,29 +722,29 @@ route("GET", "/games/export-supabase", async (req, res) => {
     const platformAvailability: Record<string, boolean> = {};
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
-    const images: string[] = [];
+    const images: Array<{ alt: string; url: string }> = [];
     const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
-    if (coverUrl) images.push(coverUrl);
+    if (coverUrl) images.push({ alt: g.name, url: coverUrl });
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {
-        if (!images.includes(img)) images.push(img);
+        if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
       }
     }
     if (detail?.media?.screenshots) {
       for (const img of detail.media.screenshots) {
-        if (!images.includes(img)) images.push(img);
+        if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
       }
     }
 
-    const pricing: Record<string, number | null> = {
-      primaria_1: sale?.primaria1 ?? null,
-      primaria_2: sale?.primaria2 ?? null,
-      secundaria: sale?.secundaria ?? null,
-      cost_clp: sale?.costClp ?? null,
-    };
+    const primaria = sale?.primaria1 ?? null;
+    const secundaria = sale?.secundaria ?? null;
+    const pricing: Record<string, Record<string, number | null>> = {};
+    for (const p of hwPlatforms.length ? hwPlatforms : ["PS4"]) {
+      pricing[p] = { Primaria: primaria, Secundaria: secundaria };
+    }
 
     return {
-      sku: `${g.platform}:${g.region}:${g.id}`,
+      sku,
       display_name: g.name,
       images,
       platform_availability: platformAvailability,
