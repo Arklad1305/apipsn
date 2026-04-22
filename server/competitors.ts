@@ -18,7 +18,7 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
-export type CompetitorType = "shopify" | "woocommerce" | "html" | "auto";
+export type CompetitorType = "shopify" | "woocommerce" | "html" | "jumpseller" | "auto";
 
 export interface CompetitorConfig {
   key: string;
@@ -511,6 +511,109 @@ async function fetchHtmlStorefront(
   return out;
 }
 
+// -------------------- Jumpseller scraper --------------------
+
+async function fetchJumpseller(
+  storeKey: string,
+  domain: string
+): Promise<CompetitorProduct[]> {
+  const base = `https://${domain}`;
+
+  // Step 1: Fetch homepage to discover category links
+  const homeHtml = await fetchText(base + "/");
+  const categories: string[] = [];
+  if (homeHtml) {
+    const catRegex = /href=["'](\/categorias\/[^"'?#]+)["']/gi;
+    let m;
+    const seen = new Set<string>();
+    while ((m = catRegex.exec(homeHtml)) !== null) {
+      const path = m[1].replace(/\/+$/, "");
+      if (!seen.has(path)) {
+        seen.add(path);
+        categories.push(path);
+      }
+    }
+  }
+
+  // Always include /categorias/ root as fallback
+  if (!categories.includes("/categorias")) categories.unshift("/categorias");
+
+  const products: CompetitorProduct[] = [];
+  const seenUrls = new Set<string>();
+  const maxCategories = 20;
+  const maxPages = 50;
+
+  for (const cat of categories.slice(0, maxCategories)) {
+    for (let page = 1; page <= maxPages; page++) {
+      const url = `${base}${cat}?page=${page}`;
+      const html = await fetchText(url);
+      if (!html) break;
+
+      // Extract product cards — Jumpseller uses various patterns
+      let foundOnPage = 0;
+
+      // Pattern A: product links with /productos/ href
+      const productBlockRegex =
+        /href=["'](\/productos\/[^"'?#]+)["'][^]*?(?=href=["']\/productos\/|$)/gi;
+      let block: RegExpExecArray | null;
+      const productLinks: string[] = [];
+      const linkRegex = /href=["'](\/productos\/[^"'?#]+)["']/gi;
+      let lm;
+      while ((lm = linkRegex.exec(html)) !== null) {
+        const pUrl = base + lm[1];
+        if (!seenUrls.has(pUrl)) {
+          seenUrls.add(pUrl);
+          productLinks.push(lm[1]);
+        }
+      }
+
+      // For each product link, extract title + price from its surrounding context
+      for (const link of productLinks) {
+        const escapedLink = link.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const ctxRegex = new RegExp(
+          `href=["']${escapedLink}["'][\\s\\S]{0,1000}`
+        );
+        const ctx = ctxRegex.exec(html)?.[0] ?? "";
+
+        // Title: look for product name patterns
+        const titleMatch =
+          /class=["'][^"']*(?:title|nombre|name)[^"']*["'][^>]*>([^<]{3,100})</.exec(ctx) ||
+          /alt=["']([^"']{3,100})["']/.exec(ctx) ||
+          /<span[^>]*>([^<]{3,80})<\/span>/.exec(ctx);
+        const title = titleMatch?.[1]?.trim();
+
+        // Price: look for CLP price patterns
+        const priceMatch =
+          /class=["'][^"']*(?:price|precio)[^"']*["'][^>]*>[\s$]*([\d.,]+)/.exec(ctx) ||
+          /\$\s*([\d.,]+)/.exec(ctx) ||
+          /data-price=["']([\d.,]+)["']/.exec(ctx);
+        const price = parseClp(priceMatch?.[1]);
+
+        if (title && price != null) {
+          products.push({
+            storeKey,
+            title,
+            url: base + link,
+            priceClp: price,
+            available: true,
+          });
+          foundOnPage++;
+        }
+      }
+
+      if (foundOnPage === 0) break;
+    }
+  }
+
+  if (!products.length) {
+    throw new CompetitorFetchError(
+      storeKey,
+      `${domain}: no se encontraron productos en Jumpseller (sin /productos/ en el HTML)`
+    );
+  }
+  return products;
+}
+
 // -------------------- public API --------------------
 
 export async function fetchCompetitor(
@@ -519,8 +622,18 @@ export async function fetchCompetitor(
   if (cfg.type === "shopify") return fetchShopify(cfg.key, cfg.domain);
   if (cfg.type === "woocommerce") return fetchWoo(cfg.key, cfg.domain);
   if (cfg.type === "html") return fetchHtmlStorefront(cfg.key, cfg.domain);
+  if (cfg.type === "jumpseller") return fetchJumpseller(cfg.key, cfg.domain);
 
-  // auto: shopify → woo → html (sitemap+json-ld) fallback chain
+  // auto: detect Jumpseller by homepage fingerprint, then shopify → woo → html fallback
+  const homeHtml = await fetchText(`https://${cfg.domain}/`);
+  if (homeHtml && (/\/productos\//i.test(homeHtml) || /\/categorias\//i.test(homeHtml))) {
+    try {
+      return await fetchJumpseller(cfg.key, cfg.domain);
+    } catch (e) {
+      if (!(e instanceof CompetitorFetchError)) throw e;
+    }
+  }
+
   const errors: string[] = [];
   for (const fn of [fetchShopify, fetchWoo, fetchHtmlStorefront]) {
     try {

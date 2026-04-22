@@ -542,7 +542,7 @@ route("PUT", "/competitors", async (req, res) => {
       key: c.key.trim(),
       label: (c.label || c.key).trim(),
       domain: c.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim(),
-      type: (["shopify", "woocommerce", "html", "auto"].includes(c.type) ? c.type : "auto"),
+      type: (["shopify", "woocommerce", "html", "jumpseller", "auto"].includes(c.type) ? c.type : "auto"),
       enabled: c.enabled !== false,
     }));
   store.setCompetitors(clean);
@@ -689,6 +689,43 @@ route("DELETE", "/watchlist/:id", async (_req, res, params) => {
 route("GET", "/games/:id/matches", async (_req, res, params) => {
   const matches: CompetitorMatch[] = store.getCompetitorMatches(params.id);
   sendJson(res, 200, { matches });
+});
+
+// GET /debug/status — diagnostic snapshot of system health
+route("GET", "/debug/status", async (_req, res) => {
+  const allGames = store.listGames();
+  const activeGames = allGames.filter((g) => g.active);
+
+  const gamesByPlatform: Record<string, number> = {};
+  for (const g of activeGames) {
+    gamesByPlatform[g.platform] = (gamesByPlatform[g.platform] || 0) + 1;
+  }
+
+  const sources = store.getSources().map((s) => ({
+    platform: s.platform,
+    region: s.region,
+    enabled: s.enabled,
+  }));
+
+  const competitors = store.getCompetitors();
+  const allProducts = store.getAllCompetitorProducts(false);
+  const refreshedAt = store.getCompetitorRefreshedAt();
+
+  const competitorStatus = competitors.map((c) => ({
+    key: c.key,
+    label: c.label,
+    productCount: allProducts.filter((p) => p.storeKey === c.key).length,
+    refreshedAt: refreshedAt[c.key] ?? null,
+  }));
+
+  sendJson(res, 200, {
+    totalGames: allGames.length,
+    activeGames: activeGames.length,
+    gamesByPlatform,
+    sources,
+    competitors: competitorStatus,
+    dbSizeKb: null,
+  });
 });
 
 export async function handleRequest(

@@ -392,6 +392,92 @@ input[type="checkbox"] {
   color: #c6d4df;
 }
 
+/* Source status panel (offers tab) */
+.source-status-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 4px;
+  margin-bottom: 8px;
+}
+
+.source-status-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  min-width: 165px;
+  max-width: 260px;
+}
+
+.source-status-card.source-status-disabled {
+  opacity: 0.45;
+}
+
+.source-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.source-status-dot.ok { background: var(--ok); box-shadow: 0 0 5px rgba(70,194,103,0.5); }
+.source-status-dot.error { background: var(--err); box-shadow: 0 0 5px rgba(248,81,73,0.5); }
+.source-status-dot.warn { background: var(--warn); }
+.source-status-dot.disabled { background: var(--muted-soft); }
+
+.source-status-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-status-name {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.source-status-region {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.source-status-detail {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.source-status-btn {
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.source-status-btn:hover:not(:disabled) {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.source-status-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Sources grid in settings */
 .sources-list {
   display: flex;

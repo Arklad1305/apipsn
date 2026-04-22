@@ -41,7 +41,7 @@ export interface GameOut {
   marketMatches: CompetitorMatchOut[];
 }
 
-export type CompetitorType = "shopify" | "woocommerce" | "html" | "auto";
+export type CompetitorType = "shopify" | "woocommerce" | "html" | "jumpseller" | "auto";
 
 export interface CompetitorConfig {
   key: string;

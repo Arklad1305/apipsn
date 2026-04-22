@@ -43,6 +43,7 @@ async function fetchJson(url: string): Promise<any> {
         headers: {
           "user-agent": UA,
           accept: "application/json, text/javascript, */*",
+          cookie: "wants_mature_content=1; birthtime=568022401; Steam_Language=english",
         },
       });
       if (!r.ok) {
@@ -121,7 +122,7 @@ async function* fetchSteamDeals(
     if (!html || html.trim() === "") {
       if (page === 0) {
         const total = data?.total_count ?? "?";
-        throw new ProviderError("steam", region, `Steam returned empty HTML (total_count=${total})`);
+        throw new ProviderError("steam", region, `Steam returned empty HTML (total_count=${total}, preview: ${html.slice(0, 200)})`);
       }
       break;
     }

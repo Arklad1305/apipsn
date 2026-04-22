@@ -84,6 +84,24 @@ async function fetchJson(url: string): Promise<any> {
   return r.json();
 }
 
+/** Recursively walk a JSON tree looking for Xbox product IDs (12-char alphanumeric starting with 9). */
+function extractIdsFromTree(node: unknown, seen: Set<string>, ids: string[]): void {
+  if (!node || typeof node !== "object") {
+    if (typeof node === "string" && /^9[A-Z0-9]{11}$/.test(node) && !seen.has(node)) {
+      seen.add(node);
+      ids.push(node);
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const v of node) extractIdsFromTree(v, seen, ids);
+    return;
+  }
+  for (const v of Object.values(node as Record<string, unknown>)) {
+    extractIdsFromTree(v, seen, ids);
+  }
+}
+
 // Try multiple endpoints to get deal product IDs.
 // Primary: reco-public (Microsoft Recommendations API)
 // Fallback: catalog.gamepass.com/sigls (Game Pass signals — contains deal lists)
@@ -134,6 +152,65 @@ async function fetchDealIds(
     if (ids.length > 0) return ids;
   } catch (e) {
     errors.push(`Search: ${(e as Error).message}`);
+  }
+
+  // Attempt 4: HTML fallback — scrape xbox.com deals page for product IDs
+  try {
+    const browseUrl =
+      `https://www.xbox.com/en-US/games/browse?FilteredByIds=DynamicChannel.GameDeals`;
+    const r = await fetchWithRetry(browseUrl, {
+      headers: {
+        "user-agent": UA,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": language,
+      },
+    });
+    if (!r.ok) {
+      throw new Error(`HTTP ${r.status}`);
+    }
+    const html = await r.text();
+    const ids: string[] = [];
+    const seen = new Set<string>();
+
+    // Strategy A: Parse __NEXT_DATA__ JSON blob for product IDs
+    const nextDataMatch = /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/.exec(html);
+    if (nextDataMatch) {
+      try {
+        const nextData = JSON.parse(nextDataMatch[1]);
+        extractIdsFromTree(nextData, seen, ids);
+      } catch { /* malformed JSON */ }
+    }
+
+    // Strategy B: Look for 12-character alphanumeric product IDs in data attributes
+    if (ids.length === 0) {
+      const attrRegex = /data-[a-z-]*id=["']([A-Z0-9]{12})["']/gi;
+      let attrMatch;
+      while ((attrMatch = attrRegex.exec(html)) !== null) {
+        const id = attrMatch[1];
+        if (!seen.has(id)) {
+          seen.add(id);
+          ids.push(id);
+        }
+      }
+    }
+
+    // Strategy C: Find any 12-char uppercase alphanumeric strings that look like Xbox product IDs
+    if (ids.length === 0) {
+      const idRegex = /\b(9[A-Z0-9]{11})\b/g;
+      let idMatch;
+      while ((idMatch = idRegex.exec(html)) !== null) {
+        const id = idMatch[1];
+        if (!seen.has(id)) {
+          seen.add(id);
+          ids.push(id);
+        }
+      }
+    }
+
+    if (ids.length > 0) return ids;
+    errors.push(`HTML scrape: found 0 product IDs in ${html.length} bytes of HTML`);
+  } catch (e) {
+    errors.push(`HTML scrape: ${(e as Error).message}`);
   }
 
   throw new Error(`All Xbox deal endpoints failed: ${errors.join(" | ")}`);

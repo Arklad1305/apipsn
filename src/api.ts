@@ -154,3 +154,14 @@ export function removeFromWatchlist(id: string): Promise<{ removed: boolean }> {
 }
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
+
+export function getDebugStatus(): Promise<{
+  totalGames: number;
+  activeGames: number;
+  gamesByPlatform: Record<string, number>;
+  sources: Array<{ platform: string; region: string; enabled: boolean }>;
+  competitors: Array<{ key: string; label: string; productCount: number; refreshedAt: string | null }>;
+  dbSizeKb: number | null;
+}> {
+  return req(`/debug/status`);
+}

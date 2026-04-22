@@ -134,13 +134,15 @@ async function findWorkingFilter(): Promise<string> {
       const data = await algoliaQuery(params);
       const nbHits = data?.nbHits ?? 0;
       if (nbHits > 0) {
-        console.log(`[nintendo/us] Filter OK (nbHits=${nbHits}): ${filter || "(none)"}`);
+        console.log(`[nintendo/us] Filter OK (nbHits=${nbHits}): ${filter || "(sin filtro)"}`);
         return filter;
       }
-    } catch {
-      // Filter not supported, try next
+      console.log(`[nintendo/us] Filter miss (nbHits=0): ${filter || "(sin filtro)"}`);
+    } catch (e) {
+      console.log(`[nintendo/us] Filter error: ${filter || "(sin filtro)"} → ${(e as Error).message}`);
     }
   }
+  console.warn("[nintendo/us] Ningún filtro de Algolia funcionó");
   return "";
 }
 

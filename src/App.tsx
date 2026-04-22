@@ -12,7 +12,9 @@ import {
 import type {
   Filters,
   GameOut,
+  Platform,
   SettingsResponse,
+  SourceResult,
   WatchlistAlert,
 } from "./types";
 import { Toolbar } from "./components/Toolbar";
@@ -23,6 +25,7 @@ import { Pagination } from "./components/Pagination";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WatchlistPanel } from "./components/WatchlistPanel";
+import { SourceStatusPanel } from "./components/SourceStatusPanel";
 
 const PAGE_SIZE = 30;
 
@@ -55,6 +58,7 @@ export function App() {
   const [detailGame, setDetailGame] = useState<GameOut | null>(null);
   const [page, setPage] = useState(1);
   const [watchlistAlerts, setWatchlistAlerts] = useState<WatchlistAlert[]>([]);
+  const [lastSourceResults, setLastSourceResults] = useState<SourceResult[] | null>(null);
   const statusRef = useRef<HTMLDivElement>(null);
 
   // Any filter change snaps us back to page 1.
@@ -123,6 +127,9 @@ export function App() {
       if (summary.watchlistAlerts?.length) {
         setWatchlistAlerts(summary.watchlistAlerts);
       }
+      if (summary.sourceResults?.length) {
+        setLastSourceResults(summary.sourceResults);
+      }
       await reload();
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -155,6 +162,37 @@ export function App() {
     if (!confirm("¿Desactivar todos los juegos?")) return;
     try {
       await clearAll();
+      await reload();
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    }
+  };
+
+  const onRefreshSource = async (platform: Platform, region: string) => {
+    setStatusKind("info");
+    setStatusMsg(`Actualizando ${platform.toUpperCase()} ${region.toUpperCase()}…`);
+    try {
+      const summary = await refresh(platform, region);
+      const r = summary.sourceResults?.[0];
+      if (r?.error) {
+        setStatusKind("err");
+        setStatusMsg(`${platform.toUpperCase()}/${region.toUpperCase()} ✗ ${r.error}`);
+      } else {
+        setStatusKind("ok");
+        setStatusMsg(`${platform.toUpperCase()}/${region.toUpperCase()}: ${r?.totalSeen ?? 0} juegos`);
+      }
+      if (summary.sourceResults?.length) {
+        setLastSourceResults((prev) => {
+          const merged = [...(prev ?? [])];
+          for (const newR of summary.sourceResults!) {
+            const idx = merged.findIndex((x) => x.platform === newR.platform && x.region === newR.region);
+            if (idx >= 0) merged[idx] = newR;
+            else merged.push(newR);
+          }
+          return merged;
+        });
+      }
       await reload();
     } catch (e) {
       setStatusKind("err");
@@ -269,6 +307,14 @@ export function App() {
         <div className="loading">Cargando configuración…</div>
       ) : (
         <>
+          {settings && (
+            <SourceStatusPanel
+              sources={settings.sources}
+              lastResults={lastSourceResults}
+              onRefreshSource={onRefreshSource}
+              refreshing={loading}
+            />
+          )}
           <FiltersBar
             filters={filters}
             setFilters={setFilters}
