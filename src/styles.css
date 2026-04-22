@@ -487,6 +487,114 @@ input[type="checkbox"] {
   flex-wrap: wrap;
 }
 
+/* PS Plus panel */
+.psplus-panel {
+  padding: 8px 0;
+}
+
+.psplus-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-bottom: 16px;
+}
+
+.psplus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.psplus-tier {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.psplus-tier-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.psplus-plan {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.psplus-plan:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.psplus-plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.psplus-duration {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.psplus-official {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.psplus-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.psplus-match {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.1s;
+}
+
+.psplus-match:hover {
+  background: var(--panel-hover);
+}
+
+.psplus-best {
+  background: rgba(70, 194, 103, 0.1);
+  border: 1px solid rgba(70, 194, 103, 0.2);
+}
+
+.psplus-store {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  min-width: 80px;
+}
+
+.psplus-price {
+  font-weight: 600;
+}
+
+.psplus-saving {
+  color: var(--ok);
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.psplus-no-match {
+  font-size: 0.75rem;
+  padding: 4px 0;
+}
+
 /* Sources grid in settings */
 .sources-list {
   display: flex;

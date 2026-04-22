@@ -7,6 +7,7 @@ import type {
   GameOut,
   Platform,
   PlatformMeta,
+  PlusPlanWithMatches,
   PricingSettings,
   ProductDetail,
   ProviderSource,
@@ -165,6 +166,10 @@ export function enrichGames(platform?: string, limit?: number): Promise<{
   if (platform) body.platform = platform;
   if (limit) body.limit = limit;
   return req(`/games/enrich`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function getPsPlus(): Promise<{ plans: PlusPlanWithMatches[] }> {
+  return req(`/ps-plus`);
 }
 
 export function refreshExchangeRate(): Promise<{

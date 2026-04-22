@@ -36,6 +36,7 @@ import {
 import type { Platform, ProviderSource } from "./providers/types";
 import { fetchExchangeRates } from "./exchange";
 import { getLastAutoRefreshAt, reschedule, startScheduler } from "./scheduler";
+import { matchPlansWithCompetitors } from "./ps-plus";
 
 /** Extract a PSN product id from a store URL. Accepts both en-US and other
  *  locales, and tolerates trailing segments / query strings. */
@@ -764,6 +765,14 @@ route("POST", "/competitors/refresh", async (_req, res) => {
 
   recomputeMatches();
   sendJson(res, 200, { refreshedAt: now, results });
+});
+
+// GET /ps-plus — PS Plus membership prices vs competitors
+route("GET", "/ps-plus", async (_req, res) => {
+  const cfg = store.getSettings();
+  const products = store.getAllCompetitorProducts();
+  const plans = matchPlansWithCompetitors(products, cfg.usdToClp);
+  sendJson(res, 200, { plans });
 });
 
 // GET /debug/product-types — one-shot reconnaissance used to design the

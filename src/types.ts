@@ -183,6 +183,20 @@ export interface ProductDetail {
   fetchedAt: string;
 }
 
+export type PlusTier = "essential" | "extra" | "premium";
+export type PlusDuration = "1m" | "3m" | "12m";
+
+export interface PlusPlanWithMatches {
+  tier: PlusTier;
+  duration: PlusDuration;
+  label: string;
+  officialPriceUsd: number | null;
+  officialPriceClp: number | null;
+  competitorMatches: CompetitorMatchOut[];
+  bestPrice: number | null;
+  bestStore: string | null;
+}
+
 export interface Filters {
   search: string;
   minDiscount: number;

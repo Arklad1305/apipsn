@@ -28,6 +28,7 @@ import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WatchlistPanel } from "./components/WatchlistPanel";
 import { SourceStatusPanel } from "./components/SourceStatusPanel";
+import { PsPlusPanel } from "./components/PsPlusPanel";
 
 const PAGE_SIZE = 30;
 
@@ -41,11 +42,12 @@ const DEFAULT_FILTERS: Filters = {
   sort: "discount",
 };
 
-type TabId = "offers" | "watchlist" | "settings";
+type TabId = "offers" | "watchlist" | "psplus" | "settings";
 
 const TABS: { id: TabId; label: string; hint?: string }[] = [
   { id: "offers", label: "Ofertas", hint: "PSN · Xbox · Nintendo · Steam" },
   { id: "watchlist", label: "Seguimiento", hint: "Juegos que te avisamos cuando entren en oferta" },
+  { id: "psplus", label: "PS Plus", hint: "Membresías y precios en competencia" },
   { id: "settings", label: "Configuración", hint: "Plataformas, precios y competencia" },
 ];
 
@@ -270,7 +272,7 @@ export function App() {
               ? "offers"
               : tab === "watchlist"
               ? "watchlist"
-              : tab === "settings"
+              : tab === "settings" || tab === "psplus"
               ? "settings"
               : "offers"
           }
@@ -323,6 +325,8 @@ export function App() {
         />
       ) : tab === "watchlist" ? (
         <WatchlistPanel />
+      ) : tab === "psplus" ? (
+        <PsPlusPanel />
       ) : tab === "settings" && settings ? (
         <SettingsPanel initial={settings} onSaved={onSavedSettings} />
       ) : tab === "settings" ? (
