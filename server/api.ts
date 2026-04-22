@@ -503,6 +503,89 @@ route("GET", "/games/export.csv", async (req, res) => {
   res.end(bom + content);
 });
 
+// GET /games/export-supabase.csv — CSV matching the Supabase products table schema exactly
+route("GET", "/games/export-supabase.csv", async (req, res) => {
+  const url = new URL(req.url || "/", "http://x");
+  const onlySelected = url.searchParams.get("only_selected") !== "false";
+  const platformFilter = url.searchParams.get("platform") || "";
+
+  let games = store.listGames().filter((g) => g.active);
+  if (onlySelected) games = games.filter((g) => g.selected);
+  if (platformFilter) games = games.filter((g) => g.platform === platformFilter);
+  const cfg = store.getSettings();
+
+  const header = [
+    "sku",
+    "display_name",
+    "images",
+    "platform_availability",
+    "pricing_by_platform_and_account",
+    "stock_quantity",
+    "is_active",
+    "sort_order",
+  ];
+
+  const escape = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    const needsQuote = s.includes(",") || s.includes('"') || s.includes("\n");
+    return needsQuote ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const lines = [header.join(",")];
+  for (const g of games) {
+    const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
+    const detail = store.getProductDetail(g.id);
+
+    const hwPlatforms = (g.platforms || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const platformAvailability: Record<string, boolean> = {};
+    for (const p of hwPlatforms) platformAvailability[p] = true;
+
+    const images: string[] = [];
+    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
+    if (coverUrl) images.push(coverUrl);
+    if (detail?.carouselImages) {
+      for (const img of detail.carouselImages) {
+        if (!images.includes(img)) images.push(img);
+      }
+    }
+    if (detail?.media?.screenshots) {
+      for (const img of detail.media.screenshots) {
+        if (!images.includes(img)) images.push(img);
+      }
+    }
+
+    const pricing: Record<string, number | null> = {
+      primaria_1: sale?.primaria1 ?? null,
+      primaria_2: sale?.primaria2 ?? null,
+      secundaria: sale?.secundaria ?? null,
+      cost_clp: sale?.costClp ?? null,
+    };
+
+    lines.push(
+      [
+        `${g.platform}:${g.region}:${g.id}`,
+        g.name,
+        JSON.stringify(images),
+        JSON.stringify(platformAvailability),
+        JSON.stringify(pricing),
+        0,
+        true,
+        0,
+      ]
+        .map(escape)
+        .join(",")
+    );
+  }
+
+  res.statusCode = 200;
+  res.setHeader("content-type", "text/csv; charset=utf-8");
+  res.setHeader("content-disposition", 'attachment; filename="apipsn-supabase.csv"');
+  res.end(lines.join("\n"));
+});
+
 // GET /games/export.json — Supabase-ready JSON export with enriched product details
 // Params: only_selected=true|false, platform=psn|xbox|..., enrich=true (include product detail if cached)
 route("GET", "/games/export.json", async (req, res) => {
