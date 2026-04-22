@@ -5,6 +5,7 @@ interface Props {
   onEnrich?: () => void;
   exportHref: string;
   exportJsonHref?: string;
+  exportSupabaseHref?: string;
   variant: "offers" | "watchlist" | "settings";
 }
 
@@ -15,6 +16,7 @@ export function Toolbar({
   onEnrich,
   exportHref,
   exportJsonHref,
+  exportSupabaseHref,
   variant,
 }: Props) {
   if (variant === "settings") return null;
@@ -43,8 +45,13 @@ export function Toolbar({
         CSV
       </a>
       {variant === "offers" && exportJsonHref && (
-        <a className="button" href={exportJsonHref} target="_blank" rel="noopener" title="JSON con datos enriquecidos para Supabase">
+        <a className="button" href={exportJsonHref} target="_blank" rel="noopener" title="JSON con datos enriquecidos">
           JSON
+        </a>
+      )}
+      {variant === "offers" && exportSupabaseHref && (
+        <a className="button" href={exportSupabaseHref} target="_blank" rel="noopener" title="JSON listo para INSERT en Supabase">
+          Supabase
         </a>
       )}
       {variant === "offers" && (

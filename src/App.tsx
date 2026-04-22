@@ -6,6 +6,7 @@ import {
   enrichGames,
   exportCsvUrl,
   exportJsonUrl,
+  exportSupabaseUrl,
   fetchGames,
   getSettings,
   refresh,
@@ -269,6 +270,7 @@ export function App() {
           onEnrich={onEnrich}
           exportHref={exportCsvUrl}
           exportJsonHref={exportJsonUrl}
+          exportSupabaseHref={exportSupabaseUrl}
           variant={
             detailGame
               ? "offers"

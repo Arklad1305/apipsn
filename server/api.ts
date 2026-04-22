@@ -592,6 +592,64 @@ route("GET", "/games/export.json", async (req, res) => {
   sendJson(res, 200, { games: rows, exported_at: new Date().toISOString(), count: rows.length });
 });
 
+// GET /games/export-supabase — export selected games formatted for the Supabase products table
+route("GET", "/games/export-supabase", async (req, res) => {
+  const url = new URL(req.url || "/", "http://x");
+  const onlySelected = url.searchParams.get("only_selected") !== "false";
+  const platformFilter = url.searchParams.get("platform") || "";
+
+  let games = store.listGames().filter((g) => g.active);
+  if (onlySelected) games = games.filter((g) => g.selected);
+  if (platformFilter) games = games.filter((g) => g.platform === platformFilter);
+  const cfg = store.getSettings();
+
+  const rows = games.map((g) => {
+    const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
+    const detail = store.getProductDetail(g.id);
+
+    const hwPlatforms = (g.platforms || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const platformAvailability: Record<string, boolean> = {};
+    for (const p of hwPlatforms) platformAvailability[p] = true;
+
+    const images: string[] = [];
+    const coverUrl = detail?.media?.coverUrl ?? g.imageUrl;
+    if (coverUrl) images.push(coverUrl);
+    if (detail?.carouselImages) {
+      for (const img of detail.carouselImages) {
+        if (!images.includes(img)) images.push(img);
+      }
+    }
+    if (detail?.media?.screenshots) {
+      for (const img of detail.media.screenshots) {
+        if (!images.includes(img)) images.push(img);
+      }
+    }
+
+    const pricing: Record<string, number | null> = {
+      primaria_1: sale?.primaria1 ?? null,
+      primaria_2: sale?.primaria2 ?? null,
+      secundaria: sale?.secundaria ?? null,
+      cost_clp: sale?.costClp ?? null,
+    };
+
+    return {
+      sku: `${g.platform}:${g.region}:${g.id}`,
+      display_name: g.name,
+      images,
+      platform_availability: platformAvailability,
+      pricing_by_platform_and_account: pricing,
+      stock_quantity: 0,
+      is_active: true,
+      sort_order: 0,
+    };
+  });
+
+  sendJson(res, 200, { rows, exported_at: new Date().toISOString(), count: rows.length });
+});
+
 // POST /games/enrich — bulk-fetch product details for selected games that don't have them yet
 // Body: { platform?: string, limit?: number }
 route("POST", "/games/enrich", async (req, res) => {

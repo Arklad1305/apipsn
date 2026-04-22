@@ -158,6 +158,7 @@ export function removeFromWatchlist(id: string): Promise<{ removed: boolean }> {
 
 export const exportCsvUrl = `${API}/games/export.csv?only_selected=true`;
 export const exportJsonUrl = `${API}/games/export.json?only_selected=true`;
+export const exportSupabaseUrl = `${API}/games/export-supabase?only_selected=true`;
 
 export function enrichGames(platform?: string, limit?: number): Promise<{
   enriched: number;
