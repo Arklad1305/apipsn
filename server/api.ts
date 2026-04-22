@@ -23,6 +23,8 @@ import {
   fetchCompetitor,
   matchGames,
   CompetitorFetchError,
+  tokenize,
+  similarity,
   type CompetitorConfig,
   type CompetitorMatch,
 } from "./competitors";
@@ -786,6 +788,55 @@ route("POST", "/ps-plus/refresh", async (_req, res) => {
   } catch (e) {
     sendJson(res, 500, { error: "scrape_failed", message: (e as Error).message });
   }
+});
+
+// POST /games/lookup — bulk fuzzy search: receives a list of {name, priceUsd?}
+// items (parsed from pasted competitor text) and matches each against the game DB.
+route("POST", "/games/lookup", async (req, res) => {
+  const body = await readBody(req);
+  const items: Array<{ name: string; priceMin: number | null; priceMax: number | null }> =
+    body?.items;
+  if (!Array.isArray(items) || !items.length) {
+    sendJson(res, 400, { error: "bad_request", message: "items[] required" });
+    return;
+  }
+
+  const cfg = store.getSettings();
+  const allGames = store.listGames().filter((g) => g.active);
+  const gameIndex = allGames.map((g) => ({
+    game: g,
+    tokens: tokenize(g.name),
+  }));
+
+  const THRESHOLD = 0.40;
+  const results = items.map((item) => {
+    const queryTokens = tokenize(item.name);
+    let bestGame: Game | null = null;
+    let bestScore = 0;
+
+    for (const { game, tokens } of gameIndex) {
+      if (!tokens.length) continue;
+      const score = similarity(queryTokens, tokens);
+      if (score > bestScore) {
+        bestScore = score;
+        bestGame = game;
+      }
+    }
+
+    const matched = bestScore >= THRESHOLD && bestGame;
+    const out = matched ? toGameOut(bestGame!, cfg) : null;
+
+    return {
+      query: item.name,
+      priceMin: item.priceMin,
+      priceMax: item.priceMax,
+      matchScore: Math.round(bestScore * 100) / 100,
+      found: !!matched,
+      game: out,
+    };
+  });
+
+  sendJson(res, 200, { results });
 });
 
 // GET /debug/product-types — one-shot reconnaissance used to design the

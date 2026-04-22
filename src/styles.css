@@ -488,6 +488,125 @@ input[type="checkbox"] {
 }
 
 /* PS Plus panel */
+/* Lookup / bulk search */
+.lookup-panel {
+  padding: 8px 0;
+}
+
+.lookup-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.lookup-input {
+  margin-bottom: 12px;
+}
+
+.lookup-textarea {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+}
+
+.lookup-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.lookup-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.lookup-results {
+  overflow-x: auto;
+}
+
+.lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.lookup-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lookup-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.lookup-table tr:hover {
+  background: var(--panel-hover);
+}
+
+.lookup-no-match {
+  opacity: 0.5;
+}
+
+.lookup-query {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.lookup-matched-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lookup-matched-name a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.lookup-matched-name a:hover {
+  text-decoration: underline;
+}
+
+.lookup-score {
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.lookup-score.high {
+  color: var(--ok);
+  background: rgba(70, 194, 103, 0.12);
+}
+
+.lookup-score.mid {
+  color: #f5c518;
+  background: rgba(245, 197, 24, 0.12);
+}
+
+.lookup-score.low {
+  color: var(--err);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* PS Plus panel */
 .psplus-panel {
   padding: 8px 0;
 }

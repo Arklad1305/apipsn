@@ -5,6 +5,8 @@ import type {
   CompetitorStatus,
   Filters,
   GameOut,
+  LookupItem,
+  LookupResult,
   Platform,
   PlatformMeta,
   PlusPlanWithMatches,
@@ -186,6 +188,13 @@ export function refreshExchangeRate(): Promise<{
   errors: string[];
 }> {
   return req(`/exchange/refresh`, { method: "POST" });
+}
+
+export function lookupGames(items: LookupItem[]): Promise<{ results: LookupResult[] }> {
+  return req(`/games/lookup`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
 }
 
 export function getDebugStatus(): Promise<{

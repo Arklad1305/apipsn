@@ -207,6 +207,21 @@ export interface PlusPlanWithMatches {
   bestStore: string | null;
 }
 
+export interface LookupItem {
+  name: string;
+  priceMin: number | null;
+  priceMax: number | null;
+}
+
+export interface LookupResult {
+  query: string;
+  priceMin: number | null;
+  priceMax: number | null;
+  matchScore: number;
+  found: boolean;
+  game: GameOut | null;
+}
+
 export interface Filters {
   search: string;
   minDiscount: number;
