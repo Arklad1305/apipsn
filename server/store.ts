@@ -105,8 +105,8 @@ const DEFAULT_SETTINGS: PricingSettings = {
   balanceDiscountBrl: 1.0,
   balanceDiscountTry: 1.0,
   primaria1Mult: 1.25,
-  primaria2Mult: 1.15,
-  secundariaMult: 1.50,
+  primaria2Mult: 1.20,
+  secundariaMult: 0.70,
   roundTo: 500,
 };
 

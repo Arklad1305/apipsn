@@ -224,13 +224,13 @@ export function SettingsPanel({ initial, onSaved }: Props) {
 
           <h4 className="settings-subheader">Multiplicadores de venta</h4>
           <p className="help">
-            Se aplican sobre el costo real (precio × descuento × TC).
-            Ej: con descuento 0.80 y multiplicador 1.25, vendes al precio de lista de PSN.
+            Se aplican sobre el costo real. Vendes 2 primarias + 1 secundaria por cada compra.
+            La secundaria es más barata (mult &lt; 1.0) porque las primarias ya cubren el costo.
           </p>
           <div className="field-grid">
-            {numField("primaria1Mult", "Primaria 1", "Ej: 1.25 ≈ precio lista PSN")}
-            {numField("primaria2Mult", "Primaria 2", "Segunda cuenta primaria")}
-            {numField("secundariaMult", "Secundaria", "Margen extra sobre costo")}
+            {numField("primaria1Mult", "Primaria 1", "Acceso completo, offline. Ej: 1.25")}
+            {numField("primaria2Mult", "Primaria 2", "Segunda consola. Ej: 1.20")}
+            {numField("secundariaMult", "Secundaria", "Más barata, requiere internet. Ej: 0.70")}
             <label className="field">
               <span className="field-label">Redondeo CLP</span>
               <input
