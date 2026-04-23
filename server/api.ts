@@ -881,6 +881,15 @@ route("POST", "/games/publish-supabase", async (req, res) => {
     };
   });
 
+  // Deduplicate by SKU — same game from different regions produces the same SKU.
+  // Keep the first occurrence (prefer US region since games are sorted that way).
+  const seen = new Set<string>();
+  const uniqueRows = rows.filter((r) => {
+    if (seen.has(r.sku)) return false;
+    seen.add(r.sku);
+    return true;
+  });
+
   try {
     const endpoint = `${supabaseCfg.url}/rest/v1/${tableName}?on_conflict=sku`;
     const response = await fetch(endpoint, {
@@ -891,7 +900,7 @@ route("POST", "/games/publish-supabase", async (req, res) => {
         "Content-Type": "application/json",
         Prefer: "resolution=merge-duplicates",
       },
-      body: JSON.stringify(rows),
+      body: JSON.stringify(uniqueRows),
     });
 
     if (!response.ok) {
@@ -907,7 +916,11 @@ route("POST", "/games/publish-supabase", async (req, res) => {
       store.patchGame(gameDbKey(g), { published: true });
     }
 
-    sendJson(res, 200, { published: rows.length, skus: rows.map((r) => r.sku) });
+    sendJson(res, 200, {
+      published: uniqueRows.length,
+      duplicatesSkipped: rows.length - uniqueRows.length,
+      skus: uniqueRows.map((r) => r.sku),
+    });
   } catch (err) {
     sendJson(res, 502, {
       error: "supabase_network_error",
