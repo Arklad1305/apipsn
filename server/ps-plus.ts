@@ -344,12 +344,13 @@ function bestMatchScore(searchTerms: string[], productTitle: string): number {
 
 function toClp(price: number, currency: string, cfg: PricingSettings): number {
   let rate: number;
+  let discount: number;
   switch (currency) {
-    case "BRL": rate = cfg.brlToClp; break;
-    case "TRY": rate = cfg.tryToClp; break;
-    default: rate = cfg.usdToClp; break;
+    case "BRL": rate = cfg.brlToClp; discount = cfg.balanceDiscountBrl ?? 1.0; break;
+    case "TRY": rate = cfg.tryToClp; discount = cfg.balanceDiscountTry ?? 1.0; break;
+    default:    rate = cfg.usdToClp; discount = cfg.balanceDiscountUsd ?? 1.0; break;
   }
-  return Math.round(price * rate * (1 + cfg.purchaseFeePct));
+  return Math.round(price * discount * rate);
 }
 
 export function matchPlansWithCompetitors(

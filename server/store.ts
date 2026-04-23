@@ -55,7 +55,11 @@ export interface PricingSettings {
   brlToClp: number;
   tryToClp: number;
   jpyToClp: number;
-  purchaseFeePct: number;
+  /** Fraction of face value paid for PSN balance (e.g. 0.80 = buy $10 saldo for $8).
+   *  Per-currency. Use 1.0 if buying at full price. */
+  balanceDiscountUsd: number;
+  balanceDiscountBrl: number;
+  balanceDiscountTry: number;
   primaria1Mult: number;
   primaria2Mult: number;
   secundariaMult: number;
@@ -93,14 +97,16 @@ interface DbShape {
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
-  usdToClp: 970,
+  usdToClp: 890,
   brlToClp: 170,
   tryToClp: 28,
   jpyToClp: 6.5,
-  purchaseFeePct: 0.05,
-  primaria1Mult: 1.8,
-  primaria2Mult: 1.6,
-  secundariaMult: 1.1,
+  balanceDiscountUsd: 0.80,
+  balanceDiscountBrl: 1.0,
+  balanceDiscountTry: 1.0,
+  primaria1Mult: 1.25,
+  primaria2Mult: 1.15,
+  secundariaMult: 1.50,
   roundTo: 500,
 };
 

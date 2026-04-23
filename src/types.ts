@@ -71,7 +71,9 @@ export interface PricingSettings {
   brlToClp: number;
   tryToClp: number;
   jpyToClp: number;
-  purchaseFeePct: number;
+  balanceDiscountUsd: number;
+  balanceDiscountBrl: number;
+  balanceDiscountTry: number;
   primaria1Mult: number;
   primaria2Mult: number;
   secundariaMult: number;

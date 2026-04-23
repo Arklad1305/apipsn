@@ -184,8 +184,8 @@ export function SettingsPanel({ initial, onSaved }: Props) {
           <header className="settings-section-header">
             <h3>Precios</h3>
             <p className="help">
-              Fórmula: <code>cost = precio × TC × (1 + fee)</code>,{" "}
-              <code>venta = cost × multiplicador</code>, redondeado.
+              Fórmula: <code>costo = precio × descuento_saldo × TC</code>,{" "}
+              <code>venta = costo × multiplicador</code>, redondeado.
             </p>
           </header>
           <div className="tc-update-bar">
@@ -202,15 +202,35 @@ export function SettingsPanel({ initial, onSaved }: Props) {
               Fuente: mindicador.cl · Solo USD disponible
             </span>
           </div>
+
+          <h4 className="settings-subheader">Tipos de cambio</h4>
           <div className="field-grid">
             {numField("usdToClp", "USD → CLP", "Dólar estadounidense", 1)}
             {numField("brlToClp", "BRL → CLP", "Real brasileño", 0.1)}
             {numField("tryToClp", "TRY → CLP", "Lira turca", 0.1)}
             {numField("jpyToClp", "JPY → CLP", "Yen japonés", 0.01)}
-            {numField("purchaseFeePct", "Fee de compra", "Tarjeta / PayPal (0.05 = 5%)")}
-            {numField("primaria1Mult", "Multiplicador primaria 1", "Margen sobre el costo CLP")}
-            {numField("primaria2Mult", "Multiplicador primaria 2", "Margen sobre el costo CLP")}
-            {numField("secundariaMult", "Multiplicador secundaria", "Margen sobre el costo CLP")}
+          </div>
+
+          <h4 className="settings-subheader">Descuento de saldo por región</h4>
+          <p className="help">
+            Cuánto pagas por cada $1 de saldo PSN. Ej: 0.80 = compras $10 saldo por $8.
+            Usa 1.00 si compras al precio normal (sin descuento).
+          </p>
+          <div className="field-grid">
+            {numField("balanceDiscountUsd", "Descuento saldo USD", "Ej: 0.80 = pagas 80¢ por $1")}
+            {numField("balanceDiscountBrl", "Descuento saldo BRL", "1.00 = sin descuento")}
+            {numField("balanceDiscountTry", "Descuento saldo TRY", "1.00 = sin descuento")}
+          </div>
+
+          <h4 className="settings-subheader">Multiplicadores de venta</h4>
+          <p className="help">
+            Se aplican sobre el costo real (precio × descuento × TC).
+            Ej: con descuento 0.80 y multiplicador 1.25, vendes al precio de lista de PSN.
+          </p>
+          <div className="field-grid">
+            {numField("primaria1Mult", "Primaria 1", "Ej: 1.25 ≈ precio lista PSN")}
+            {numField("primaria2Mult", "Primaria 2", "Segunda cuenta primaria")}
+            {numField("secundariaMult", "Secundaria", "Margen extra sobre costo")}
             <label className="field">
               <span className="field-label">Redondeo CLP</span>
               <input

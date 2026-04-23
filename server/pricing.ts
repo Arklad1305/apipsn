@@ -14,15 +14,20 @@ function roundTo(value: number, step: number): number {
 
 function exchangeRate(currency: string, cfg: PricingSettings): number {
   switch (currency) {
-    case "BRL":
-      return cfg.brlToClp;
-    case "TRY":
-      return cfg.tryToClp;
-    case "JPY":
-      return cfg.jpyToClp;
+    case "BRL": return cfg.brlToClp;
+    case "TRY": return cfg.tryToClp;
+    case "JPY": return cfg.jpyToClp;
     case "USD":
-    default:
-      return cfg.usdToClp;
+    default:    return cfg.usdToClp;
+  }
+}
+
+function balanceDiscount(currency: string, cfg: PricingSettings): number {
+  switch (currency) {
+    case "BRL": return cfg.balanceDiscountBrl ?? 1.0;
+    case "TRY": return cfg.balanceDiscountTry ?? 1.0;
+    case "USD":
+    default:    return cfg.balanceDiscountUsd ?? 1.0;
   }
 }
 
@@ -34,7 +39,9 @@ export function computeSalePrices(
   if (priceCents == null) return null;
   const price = priceCents / 100;
   const rate = exchangeRate(currency, cfg);
-  const cost = price * rate * (1 + cfg.purchaseFeePct);
+  const discount = balanceDiscount(currency, cfg);
+  // Actual cash outlay: price × what_we_pay_per_unit × exchange_rate
+  const cost = price * discount * rate;
   return {
     costClp: roundTo(cost, cfg.roundTo),
     primaria1: roundTo(cost * cfg.primaria1Mult, cfg.roundTo),
