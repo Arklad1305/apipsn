@@ -15,6 +15,13 @@ function roundTo(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
+/** Psychological pricing: rounds to nearest X.990 for consumer-facing prices.
+ *  e.g. 14240 → 14990, 8800 → 8990, 3200 → 2990 */
+function roundCommercial(value: number): number {
+  if (value < 1000) return Math.round(value / 100) * 100;
+  return Math.ceil(value / 1000) * 1000 - 10;
+}
+
 function exchangeRate(currency: string, cfg: PricingSettings): number {
   switch (currency) {
     case "BRL": return cfg.brlToClp;
@@ -44,14 +51,24 @@ export function computeSalePrices(
   const rate = exchangeRate(currency, cfg);
   const discount = balanceDiscount(currency, cfg);
   const cost = price * discount * rate;
-  const primaria = roundTo(cost * cfg.primariaMult, cfg.roundTo);
-  const secundaria = roundTo(cost * cfg.secundariaMult, cfg.roundTo);
+  const costClp = roundTo(cost, cfg.roundTo);
+
+  const primariaRaw = cost * cfg.primariaMult;
+  const secundariaRaw = cost * cfg.secundariaMult;
+
+  const primaria = cfg.commercialRounding !== false
+    ? roundCommercial(primariaRaw)
+    : roundTo(primariaRaw, cfg.roundTo);
+  const secundaria = cfg.commercialRounding !== false
+    ? roundCommercial(secundariaRaw)
+    : roundTo(secundariaRaw, cfg.roundTo);
+
   const totalRevenue = primaria * 2 + secundaria;
   return {
-    costClp: roundTo(cost, cfg.roundTo),
+    costClp,
     primaria,
     secundaria,
     totalRevenue,
-    netProfit: totalRevenue - roundTo(cost, cfg.roundTo),
+    netProfit: totalRevenue - costClp,
   };
 }

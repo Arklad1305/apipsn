@@ -3,10 +3,12 @@ interface Props {
   onRefreshCompetitors: () => void;
   onClear: () => void;
   onEnrich?: () => void;
+  onPublishSupabase?: () => void;
   exportHref: string;
   exportJsonHref?: string;
   exportSupabaseHref?: string;
   variant: "offers" | "watchlist" | "settings";
+  publishing?: boolean;
 }
 
 export function Toolbar({
@@ -14,10 +16,12 @@ export function Toolbar({
   onRefreshCompetitors,
   onClear,
   onEnrich,
+  onPublishSupabase,
   exportHref,
   exportJsonHref,
   exportSupabaseHref,
   variant,
+  publishing,
 }: Props) {
   if (variant === "settings") return null;
   return (
@@ -41,6 +45,16 @@ export function Toolbar({
           Enriquecer datos
         </button>
       )}
+      {variant === "offers" && onPublishSupabase && (
+        <button
+          className="primary"
+          onClick={onPublishSupabase}
+          disabled={publishing}
+          title="Publica los juegos seleccionados directo a Supabase"
+        >
+          {publishing ? "Publicando…" : "Publicar en Supabase"}
+        </button>
+      )}
       <a className="button" href={exportHref} target="_blank" rel="noopener">
         CSV
       </a>
@@ -51,7 +65,7 @@ export function Toolbar({
       )}
       {variant === "offers" && exportSupabaseHref && (
         <a className="button" href={exportSupabaseHref} target="_blank" rel="noopener" title="JSON listo para INSERT en Supabase">
-          Supabase
+          Supabase JSON
         </a>
       )}
       {variant === "offers" && (

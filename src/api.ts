@@ -48,6 +48,7 @@ export function fetchGames(f: Filters): Promise<GameOut[]> {
   if (f.onlySelected) q.set("only_selected", "true");
   if (f.hidePublished) q.set("hide_published", "true");
   if (f.onlyWithMarket) q.set("only_with_market", "true");
+  if (f.onlyHits) q.set("only_hits", "true");
   if (f.platform) q.set("platform", f.platform);
   q.set("sort", f.sort);
   return req<GameOut[]>(`/games?${q.toString()}`);
@@ -82,6 +83,8 @@ export function putSettings(
     pricing?: Partial<PricingSettings>;
     psn?: Partial<PsnConfig>;
     sources?: ProviderSource[];
+    supabase?: { url: string; serviceKey: string; tableName: string } | null;
+    hitPublishers?: string[];
   }
 ): Promise<SettingsResponse> {
   return req<SettingsResponse>(`/settings`, {
@@ -195,6 +198,13 @@ export function lookupGames(items: LookupItem[]): Promise<{ results: LookupResul
   return req(`/games/lookup`, {
     method: "POST",
     body: JSON.stringify({ items }),
+  });
+}
+
+export function publishToSupabase(ids?: string[]): Promise<{ published: number; skus: string[] }> {
+  return req(`/games/publish-supabase`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
   });
 }
 

@@ -9,6 +9,7 @@ import {
   exportSupabaseUrl,
   fetchGames,
   getSettings,
+  publishToSupabase,
   refresh,
   refreshCompetitors,
 } from "./api";
@@ -40,6 +41,7 @@ const DEFAULT_FILTERS: Filters = {
   onlySelected: false,
   hidePublished: false,
   onlyWithMarket: false,
+  onlyHits: false,
   platform: "",
   sort: "discount",
 };
@@ -58,6 +60,7 @@ export function App() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [games, setGames] = useState<GameOut[]>([]);
   const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>("");
   const [statusKind, setStatusKind] = useState<"ok" | "err" | "info">("info");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -194,6 +197,30 @@ export function App() {
     }
   };
 
+  const onPublishSupabase = async () => {
+    const selected = games.filter((g) => g.selected);
+    if (selected.length === 0) {
+      setStatusKind("err");
+      setStatusMsg("No hay juegos seleccionados para publicar.");
+      return;
+    }
+    if (!confirm(`¿Publicar ${selected.length} juegos a Supabase?`)) return;
+    setPublishing(true);
+    setStatusKind("info");
+    setStatusMsg(`Publicando ${selected.length} juegos en Supabase…`);
+    try {
+      const result = await publishToSupabase();
+      setStatusKind("ok");
+      setStatusMsg(`${result.published} juegos publicados en Supabase.`);
+      await reload();
+    } catch (e) {
+      setStatusKind("err");
+      setStatusMsg((e as Error).message);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const onRefreshSource = async (platform: Platform, region: string) => {
     setStatusKind("info");
     setStatusMsg(`Actualizando ${platform.toUpperCase()} ${region.toUpperCase()}…`);
@@ -268,6 +295,8 @@ export function App() {
           onRefreshCompetitors={onRefreshCompetitors}
           onClear={onClear}
           onEnrich={onEnrich}
+          onPublishSupabase={settings?.supabase ? onPublishSupabase : undefined}
+          publishing={publishing}
           exportHref={exportCsvUrl}
           exportJsonHref={exportJsonUrl}
           exportSupabaseHref={exportSupabaseUrl}

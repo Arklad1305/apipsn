@@ -7,6 +7,7 @@ import type {
   ProviderSource,
   PsnConfig,
   SettingsResponse,
+  SupabaseConfig,
 } from "../types";
 import { PLATFORM_LABELS } from "../types";
 
@@ -28,13 +29,14 @@ interface Props {
   onSaved: (s: SettingsResponse) => void;
 }
 
-type SectionId = "pricing" | "sources" | "psn" | "competitors";
+type SectionId = "pricing" | "sources" | "psn" | "competitors" | "supabase";
 
 const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
   { id: "pricing", label: "Precios", hint: "Tipo de cambio y multiplicadores" },
   { id: "sources", label: "Plataformas", hint: "PSN, Xbox, Nintendo, Steam" },
   { id: "psn", label: "PSN", hint: "Región y categoría de ofertas" },
   { id: "competitors", label: "Competencia", hint: "Tiendas a scrapear" },
+  { id: "supabase", label: "Supabase", hint: "Publicación directa a tu tienda" },
 ];
 
 export function SettingsPanel({ initial, onSaved }: Props) {
@@ -42,6 +44,9 @@ export function SettingsPanel({ initial, onSaved }: Props) {
   const [psn, setPsn] = useState<PsnConfig>(initial.psn);
   const [sources, setSources] = useState<ProviderSource[]>(initial.sources || []);
   const [competitors, setCompetitors] = useState<CompetitorStatus[]>([]);
+  const [supabase, setSupabase] = useState<SupabaseConfig>(
+    initial.supabase ?? { url: "", serviceKey: "", tableName: "playstation_games" }
+  );
   const [saving, setSaving] = useState(false);
   const [tcUpdating, setTcUpdating] = useState(false);
   const [tcMsg, setTcMsg] = useState<string>("");
@@ -52,6 +57,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
     sources: useRef<HTMLDivElement>(null),
     psn: useRef<HTMLDivElement>(null),
     competitors: useRef<HTMLDivElement>(null),
+    supabase: useRef<HTMLDivElement>(null),
   };
 
   useEffect(() => {
@@ -72,7 +78,8 @@ export function SettingsPanel({ initial, onSaved }: Props) {
   const save = async () => {
     setSaving(true);
     try {
-      const r = await putSettings({ pricing, psn, sources });
+      const supabaseCfg = supabase.url && supabase.serviceKey ? supabase : null;
+      const r = await putSettings({ pricing, psn, sources, supabase: supabaseCfg });
       await putCompetitors(
         competitors.map(({ key, label, domain, type, enabled }) => ({
           key,
@@ -411,6 +418,43 @@ export function SettingsPanel({ initial, onSaved }: Props) {
             <button className="add-competitor" onClick={addCompetitor}>
               + Agregar tienda
             </button>
+          </div>
+        </section>
+
+        <section ref={refs.supabase} className="settings-section">
+          <h3>Supabase</h3>
+          <p className="help">
+            Conecta directo con tu base de datos para publicar juegos con un click.
+          </p>
+          <div className="field-grid">
+            <label className="field">
+              <span className="field-label">Project URL</span>
+              <input
+                type="url"
+                placeholder="https://xxxxx.supabase.co"
+                value={supabase.url}
+                onChange={(e) => setSupabase((s) => ({ ...s, url: e.target.value }))}
+              />
+              <span className="field-hint">URL del proyecto en Supabase</span>
+            </label>
+            <label className="field">
+              <span className="field-label">Service Role Key</span>
+              <input
+                type="password"
+                placeholder="eyJhbGciOi..."
+                value={supabase.serviceKey}
+                onChange={(e) => setSupabase((s) => ({ ...s, serviceKey: e.target.value }))}
+              />
+              <span className="field-hint">Clave service_role (no la anon key)</span>
+            </label>
+            <label className="field">
+              <span className="field-label">Tabla</span>
+              <input
+                value={supabase.tableName}
+                onChange={(e) => setSupabase((s) => ({ ...s, tableName: e.target.value }))}
+              />
+              <span className="field-hint">Nombre de la tabla destino</span>
+            </label>
           </div>
         </section>
 

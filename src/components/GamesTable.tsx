@@ -112,6 +112,14 @@ export function GamesTable({
                     </span>
                   </td>
                   <td className="name">
+                    {g.hitScore >= 50 && (
+                      <span
+                        className={`hit-badge ${g.hitScore >= 75 ? "hit-hot" : "hit-warm"}`}
+                        title={`Hit score: ${g.hitScore}`}
+                      >
+                        {g.hitScore >= 75 ? "HOT" : "HIT"}
+                      </span>
+                    )}{" "}
                     {g.storeUrl ? (
                       <a href={g.storeUrl} target="_blank" rel="noopener">
                         {g.name}

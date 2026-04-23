@@ -65,6 +65,14 @@ export interface PricingSettings {
   /** Price multiplier for Secundaria (sold ×1 per purchase, cheaper). */
   secundariaMult: number;
   roundTo: number;
+  /** When true, consumer-facing prices (primaria/secundaria) use X.990 endings. */
+  commercialRounding: boolean;
+}
+
+export interface SupabaseConfig {
+  url: string;
+  serviceKey: string;
+  tableName: string;
 }
 
 export interface PsnConfig {
@@ -95,6 +103,10 @@ interface DbShape {
     scrapedAt: string;
     errors: string[];
   } | null;
+  /** Supabase connection for direct publishing. */
+  supabase: SupabaseConfig | null;
+  /** Publishers considered "hit" tier for auto-filtering. */
+  hitPublishers: string[];
 }
 
 const DEFAULT_SETTINGS: PricingSettings = {
@@ -108,7 +120,17 @@ const DEFAULT_SETTINGS: PricingSettings = {
   primariaMult: 1.25,
   secundariaMult: 0.70,
   roundTo: 500,
+  commercialRounding: true,
 };
+
+const DEFAULT_HIT_PUBLISHERS: string[] = [
+  "Sony Interactive Entertainment", "Insomniac Games", "Naughty Dog",
+  "Santa Monica Studio", "Guerrilla", "Sucker Punch Productions",
+  "Rockstar Games", "Ubisoft", "Electronic Arts", "Capcom",
+  "Square Enix", "Bandai Namco", "Warner Bros", "Activision",
+  "Bethesda", "FromSoftware", "Konami", "SEGA", "2K Games",
+  "CD Projekt Red", "Remedy Entertainment", "Team Ninja",
+];
 
 const DEFAULT_SOURCES: ProviderSource[] = [
   { platform: "psn", region: "us", enabled: true, categoryId: "" },
@@ -219,6 +241,8 @@ function buildDb(parsed: Partial<DbShape>): DbShape {
     watchlist: parsed.watchlist ?? {},
     autoRefreshIntervalHours: parsed.autoRefreshIntervalHours ?? 0,
     psPlusPrices: parsed.psPlusPrices ?? null,
+    supabase: parsed.supabase ?? null,
+    hitPublishers: parsed.hitPublishers ?? [...DEFAULT_HIT_PUBLISHERS],
   };
 }
 
@@ -236,6 +260,8 @@ function emptyDb(): DbShape {
     watchlist: {},
     autoRefreshIntervalHours: 0,
     psPlusPrices: null,
+    supabase: null,
+    hitPublishers: [...DEFAULT_HIT_PUBLISHERS],
   };
 }
 
@@ -449,6 +475,20 @@ export const store = {
   },
   setPsPlusPrices(data: DbShape["psPlusPrices"]): void {
     db.psPlusPrices = data;
+    scheduleSave();
+  },
+  getSupabase(): SupabaseConfig | null {
+    return db.supabase ? { ...db.supabase } : null;
+  },
+  setSupabase(cfg: SupabaseConfig | null): void {
+    db.supabase = cfg ? { ...cfg } : null;
+    scheduleSave();
+  },
+  getHitPublishers(): string[] {
+    return [...db.hitPublishers];
+  },
+  setHitPublishers(list: string[]): void {
+    db.hitPublishers = [...list];
     scheduleSave();
   },
   flush(): void {

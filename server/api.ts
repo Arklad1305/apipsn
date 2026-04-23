@@ -12,7 +12,7 @@
  *   POST   /mock/clear                 deactivate all games
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { store, type Game, type WatchedGame } from "./store";
+import { store, type Game, type WatchedGame, type SupabaseConfig } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
   inspectProductTypes,
@@ -143,6 +143,55 @@ function gameDbKey(g: Game): string {
   return `${g.platform}:${g.region}:${g.id}`;
 }
 
+const ADD_ON_PATTERN = /\b(dlc|season pass|avatar|theme|currency pack|coin pack|point pack)\b/i;
+const PREMIUM_EDITION = /\b(deluxe|ultimate|complete|goty|game of the year|digital edition|launch edition)\b/i;
+
+function computeHitScore(g: Game): number {
+  // No discount = not viable for resale
+  if (g.discountPercent <= 0) return 0;
+
+  let score = 0;
+  const priceUsd = (g.priceOriginalCents ?? 0) / 100;
+
+  // AAA price tier
+  if (priceUsd >= 60) score += 30;
+  else if (priceUsd >= 40) score += 20;
+  else if (priceUsd >= 20) score += 10;
+
+  // Discount depth
+  if (g.discountPercent >= 40) score += 25;
+  else if (g.discountPercent >= 25) score += 15;
+  else if (g.discountPercent > 0) score += 5;
+
+  // Known publisher (from enriched product detail)
+  const detail = store.getProductDetail(g.id);
+  if (detail?.publisher) {
+    const hitPubs = store.getHitPublishers();
+    const pub = detail.publisher.toLowerCase();
+    if (hitPubs.some((p) => pub.includes(p.toLowerCase()))) score += 25;
+  }
+
+  // PS5 support
+  if (g.platforms?.includes("PS5")) score += 10;
+
+  // Penalty for add-on content (unless it's a premium edition)
+  if (ADD_ON_PATTERN.test(g.name) && !PREMIUM_EDITION.test(g.name)) score -= 50;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function generateSku(name: string): string {
+  const slug = name
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 5)
+    .join("-");
+  return `PS-${slug}-001`;
+}
+
 function toGameOut(g: Game, cfgPricing = store.getSettings()) {
   const sale = computeSalePrices(g.priceDiscountedCents, cfgPricing, g.currency || "USD");
   const dbKey = gameDbKey(g);
@@ -183,6 +232,7 @@ function toGameOut(g: Game, cfgPricing = store.getSettings()) {
     marketMin,
     marketCount: matches.length,
     marketMatches: matches,
+    hitScore: computeHitScore(g),
   };
 }
 
@@ -196,6 +246,7 @@ route("GET", "/games", async (req, res) => {
   const onlyWithMarket = url.searchParams.get("only_with_market") === "true";
   const includeInactive = url.searchParams.get("include_inactive") === "true";
   const platformFilter = url.searchParams.get("platform") || "";
+  const onlyHits = url.searchParams.get("only_hits") === "true";
   const sort = url.searchParams.get("sort") || "discount";
 
   let games = store.listGames();
@@ -204,6 +255,7 @@ route("GET", "/games", async (req, res) => {
   if (minDiscount > 0) games = games.filter((g) => g.discountPercent >= minDiscount);
   if (onlySelected) games = games.filter((g) => g.selected);
   if (hidePublished) games = games.filter((g) => !g.published);
+  if (onlyHits) games = games.filter((g) => computeHitScore(g) >= 50);
   if (onlyWithMarket) {
     games = games.filter((g) => {
       const key = gameDbKey(g);
@@ -212,7 +264,8 @@ route("GET", "/games", async (req, res) => {
   }
   if (search) games = games.filter((g) => g.name.toLowerCase().includes(search));
 
-  if (sort === "price") games.sort((a, b) => (a.priceDiscountedCents ?? 0) - (b.priceDiscountedCents ?? 0));
+  if (sort === "hit") games.sort((a, b) => computeHitScore(b) - computeHitScore(a));
+  else if (sort === "price") games.sort((a, b) => (a.priceDiscountedCents ?? 0) - (b.priceDiscountedCents ?? 0));
   else if (sort === "name") games.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === "market") {
     games.sort((a, b) => {
@@ -762,6 +815,107 @@ route("GET", "/games/export-supabase", async (req, res) => {
   sendJson(res, 200, { rows, exported_at: new Date().toISOString(), count: rows.length });
 });
 
+// POST /games/publish-supabase — upsert selected games directly to Supabase
+route("POST", "/games/publish-supabase", async (req, res) => {
+  const supabaseCfg = store.getSupabase();
+  if (!supabaseCfg?.url || !supabaseCfg?.serviceKey) {
+    return sendJson(res, 400, {
+      error: "supabase_not_configured",
+      message: "Configura Supabase URL y Service Key en Ajustes antes de publicar.",
+    });
+  }
+
+  const body = (await readBody(req)) as { ids?: string[] };
+  let games = store.listGames().filter((g) => g.active && g.selected);
+  if (body.ids?.length) {
+    const idSet = new Set(body.ids);
+    games = games.filter((g) => idSet.has(gameDbKey(g)));
+  }
+
+  if (games.length === 0) {
+    return sendJson(res, 400, { error: "no_games", message: "No hay juegos seleccionados para publicar." });
+  }
+
+  const cfg = store.getSettings();
+  const tableName = supabaseCfg.tableName || "playstation_games";
+
+  const rows = games.map((g) => {
+    const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
+    const detail = store.getProductDetail(g.id);
+
+    const hwPlatforms = (g.platforms || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const platformAvailability: Record<string, boolean> = {};
+    for (const p of hwPlatforms) platformAvailability[p] = true;
+
+    const images: Array<{ alt: string; url: string }> = [];
+    const portraitUrl = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl) images.push({ alt: g.name, url: portraitUrl });
+    if (detail?.media?.coverUrl && detail.media.coverUrl !== portraitUrl) {
+      images.push({ alt: g.name, url: detail.media.coverUrl });
+    }
+    if (detail?.carouselImages) {
+      for (const img of detail.carouselImages) {
+        if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
+      }
+    }
+
+    const primaria = sale?.primaria ?? null;
+    const secundaria = sale?.secundaria ?? null;
+    const pricing: Record<string, Record<string, number | null>> = {};
+    for (const p of hwPlatforms.length ? hwPlatforms : ["PS4"]) {
+      pricing[p] = { Primaria: primaria, Secundaria: secundaria };
+    }
+
+    return {
+      sku: generateSku(g.name),
+      display_name: g.name,
+      images,
+      platform_availability: platformAvailability,
+      pricing_by_platform_and_account: pricing,
+      stock_quantity: 0,
+      is_active: true,
+      sort_order: 0,
+    };
+  });
+
+  try {
+    const endpoint = `${supabaseCfg.url}/rest/v1/${tableName}?on_conflict=sku`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        apikey: supabaseCfg.serviceKey,
+        Authorization: `Bearer ${supabaseCfg.serviceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify(rows),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return sendJson(res, 502, {
+        error: "supabase_error",
+        message: `Supabase respondió ${response.status}: ${text.slice(0, 300)}`,
+      });
+    }
+
+    // Mark games as published locally
+    for (const g of games) {
+      store.patchGame(gameDbKey(g), { published: true });
+    }
+
+    sendJson(res, 200, { published: rows.length, skus: rows.map((r) => r.sku) });
+  } catch (err) {
+    sendJson(res, 502, {
+      error: "supabase_network_error",
+      message: `Error de conexión: ${(err as Error).message}`,
+    });
+  }
+});
+
 // POST /games/enrich — bulk-fetch product details for selected games that don't have them yet
 // Body: { platform?: string, limit?: number }
 route("POST", "/games/enrich", async (req, res) => {
@@ -797,6 +951,8 @@ route("GET", "/settings", async (_req, res) => {
     pricing: store.getSettings(),
     psn: store.getPsn(),
     sources: store.getSources(),
+    supabase: store.getSupabase(),
+    hitPublishers: store.getHitPublishers(),
   });
 });
 
@@ -806,11 +962,21 @@ route("PUT", "/settings", async (req, res) => {
     pricing?: Partial<ReturnType<typeof store.getSettings>>;
     psn?: Partial<ReturnType<typeof store.getPsn>>;
     sources?: ProviderSource[];
+    supabase?: SupabaseConfig | null;
+    hitPublishers?: string[];
   };
   const pricing = body.pricing ? store.updateSettings(body.pricing) : store.getSettings();
   const psn = body.psn ? store.updatePsn(body.psn) : store.getPsn();
   if (body.sources) store.setSources(body.sources);
-  sendJson(res, 200, { pricing, psn, sources: store.getSources() });
+  if (body.supabase !== undefined) store.setSupabase(body.supabase);
+  if (body.hitPublishers) store.setHitPublishers(body.hitPublishers);
+  sendJson(res, 200, {
+    pricing,
+    psn,
+    sources: store.getSources(),
+    supabase: store.getSupabase(),
+    hitPublishers: store.getHitPublishers(),
+  });
 });
 
 // GET /platforms — static metadata about available platforms + regions

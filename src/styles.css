@@ -996,6 +996,26 @@ td.name .notes {
   border: 1px solid rgba(70, 194, 103, 0.22);
 }
 
+.hit-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+.hit-warm {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+.hit-hot {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
 .price {
   font-variant-numeric: tabular-nums;
   font-weight: 500;

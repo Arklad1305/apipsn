@@ -85,6 +85,16 @@ export function FiltersBar({ filters, setFilters, count }: Props) {
         />
         Solo con competencia
       </label>
+      <label className="chk">
+        <input
+          type="checkbox"
+          checked={filters.onlyHits}
+          onChange={(e) =>
+            setFilters((f) => ({ ...f, onlyHits: e.target.checked }))
+          }
+        />
+        Solo hits
+      </label>
       <label>
         Orden
         <select
@@ -94,6 +104,7 @@ export function FiltersBar({ filters, setFilters, count }: Props) {
           }
         >
           <option value="discount">Mayor descuento</option>
+          <option value="hit">Mayor hit score</option>
           <option value="price">Menor precio</option>
           <option value="name">Nombre</option>
           <option value="market">Menor precio mercado</option>

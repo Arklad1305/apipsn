@@ -40,6 +40,7 @@ export interface GameOut {
   marketMin: number | null;
   marketCount: number;
   marketMatches: CompetitorMatchOut[];
+  hitScore: number;
 }
 
 export type CompetitorType = "shopify" | "woocommerce" | "html" | "jumpseller" | "auto";
@@ -78,6 +79,7 @@ export interface PricingSettings {
   primariaMult: number;
   secundariaMult: number;
   roundTo: number;
+  commercialRounding: boolean;
 }
 
 export interface PsnConfig {
@@ -95,10 +97,18 @@ export interface ProviderSource {
   url?: string;
 }
 
+export interface SupabaseConfig {
+  url: string;
+  serviceKey: string;
+  tableName: string;
+}
+
 export interface SettingsResponse {
   pricing: PricingSettings;
   psn: PsnConfig;
   sources: ProviderSource[];
+  supabase: SupabaseConfig | null;
+  hitPublishers: string[];
 }
 
 export interface WatchlistAlert {
@@ -231,8 +241,9 @@ export interface Filters {
   onlySelected: boolean;
   hidePublished: boolean;
   onlyWithMarket: boolean;
+  onlyHits: boolean;
   platform: Platform | "";
-  sort: "discount" | "price" | "name" | "market";
+  sort: "discount" | "price" | "name" | "market" | "hit";
 }
 
 export interface RegionConfig {
