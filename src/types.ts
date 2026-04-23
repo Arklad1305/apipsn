@@ -33,9 +33,10 @@ export interface GameOut {
   youtubeUrl: string;
   active: boolean;
   costClp: number | null;
-  primaria1: number | null;
-  primaria2: number | null;
+  primaria: number | null;
   secundaria: number | null;
+  totalRevenue: number | null;
+  netProfit: number | null;
   marketMin: number | null;
   marketCount: number;
   marketMatches: CompetitorMatchOut[];
@@ -74,8 +75,7 @@ export interface PricingSettings {
   balanceDiscountUsd: number;
   balanceDiscountBrl: number;
   balanceDiscountTry: number;
-  primaria1Mult: number;
-  primaria2Mult: number;
+  primariaMult: number;
   secundariaMult: number;
   roundTo: number;
 }

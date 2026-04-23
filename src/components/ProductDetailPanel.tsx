@@ -237,10 +237,8 @@ export function ProductDetailPanel({ game, onClose, onGameUpdated }: Props) {
               </dd>
               <dt>Costo CLP</dt>
               <dd>{fmtCLP(game.costClp)}</dd>
-              <dt>Primaria 1</dt>
-              <dd className="price">{fmtCLP(game.primaria1)}</dd>
-              <dt>Primaria 2</dt>
-              <dd className="price">{fmtCLP(game.primaria2)}</dd>
+              <dt>Primaria</dt>
+              <dd className="price">{fmtCLP(game.primaria)}</dd>
               <dt>Secundaria</dt>
               <dd className="price">{fmtCLP(game.secundaria)}</dd>
               {game.marketMin != null && (

@@ -228,8 +228,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
             La secundaria es más barata (mult &lt; 1.0) porque las primarias ya cubren el costo.
           </p>
           <div className="field-grid">
-            {numField("primaria1Mult", "Primaria 1", "Acceso completo, offline. Ej: 1.25")}
-            {numField("primaria2Mult", "Primaria 2", "Segunda consola. Ej: 1.20")}
+            {numField("primariaMult", "Primaria", "Acceso completo, offline. Ej: 1.25")}
             {numField("secundariaMult", "Secundaria", "Más barata, requiere internet. Ej: 0.70")}
             <label className="field">
               <span className="field-label">Redondeo CLP</span>

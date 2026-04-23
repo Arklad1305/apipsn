@@ -60,8 +60,9 @@ export interface PricingSettings {
   balanceDiscountUsd: number;
   balanceDiscountBrl: number;
   balanceDiscountTry: number;
-  primaria1Mult: number;
-  primaria2Mult: number;
+  /** Price multiplier for Primaria (sold ×2 per purchase). */
+  primariaMult: number;
+  /** Price multiplier for Secundaria (sold ×1 per purchase, cheaper). */
   secundariaMult: number;
   roundTo: number;
 }
@@ -104,8 +105,7 @@ const DEFAULT_SETTINGS: PricingSettings = {
   balanceDiscountUsd: 0.80,
   balanceDiscountBrl: 1.0,
   balanceDiscountTry: 1.0,
-  primaria1Mult: 1.25,
-  primaria2Mult: 1.20,
+  primariaMult: 1.25,
   secundariaMult: 0.70,
   roundTo: 500,
 };

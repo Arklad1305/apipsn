@@ -78,8 +78,7 @@ export function GamesTable({
               <th>Precio</th>
               <th>Dcto</th>
               <th>Costo CLP</th>
-              <th>Primaria 1</th>
-              <th>Primaria 2</th>
+              <th>Primaria</th>
               <th>Secundaria</th>
               <th>Mercado</th>
               <th>Fin</th>
@@ -138,8 +137,7 @@ export function GamesTable({
                     )}
                   </td>
                   <td>{fmtCLP(g.costClp)}</td>
-                  <td className="price">{fmtCLP(g.primaria1)}</td>
-                  <td className="price">{fmtCLP(g.primaria2)}</td>
+                  <td className="price">{fmtCLP(g.primaria)}</td>
                   <td className="price">{fmtCLP(g.secundaria)}</td>
                   <td className={`market ${marketClass}`}>
                     {g.marketMin == null ? (
@@ -212,11 +210,11 @@ export function GamesTable({
 }
 
 /** Green if your secundaria price is at/below the market min (competitive);
- *  red if your primaria2 is above the market min (over-priced); neutral otherwise. */
+ *  red if your primaria price is above the market min (over-priced); neutral otherwise. */
 function marketColor(g: GameOut): string {
   if (g.marketMin == null) return "";
   if (g.secundaria != null && g.secundaria <= g.marketMin) return "market-good";
-  if (g.primaria2 != null && g.primaria2 > g.marketMin) return "market-bad";
+  if (g.primaria != null && g.primaria > g.marketMin) return "market-bad";
   return "";
 }
 

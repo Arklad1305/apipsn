@@ -176,9 +176,10 @@ function toGameOut(g: Game, cfgPricing = store.getSettings()) {
     youtubeUrl: g.youtubeUrl || "",
     active: g.active,
     costClp: sale?.costClp ?? null,
-    primaria1: sale?.primaria1 ?? null,
-    primaria2: sale?.primaria2 ?? null,
+    primaria: sale?.primaria ?? null,
     secundaria: sale?.secundaria ?? null,
+    totalRevenue: sale?.totalRevenue ?? null,
+    netProfit: sale?.netProfit ?? null,
     marketMin,
     marketCount: matches.length,
     marketMatches: matches,
@@ -441,11 +442,11 @@ route("GET", "/games/export.csv", async (req, res) => {
     "descuento_pct",
     "fin_oferta",
     "costo_clp",
-    "primaria_1_clp",
-    "primaria_2_clp",
+    "primaria_clp",
     "secundaria_clp",
-    "margen_primaria1_pct",
-    "margen_secundaria_pct",
+    "ingreso_total",
+    "ganancia_neta",
+    "margen_pct",
     "notas",
   ];
 
@@ -457,17 +458,16 @@ route("GET", "/games/export.csv", async (req, res) => {
 
   const now = new Date().toISOString().slice(0, 10);
   const metadata = sheetsFormat
-    ? `# Exportado: ${now} · TC USD: ${cfg.usdToClp} · BRL: ${cfg.brlToClp} · TRY: ${cfg.tryToClp}\n`
+    ? `# Exportado: ${now} · TC USD: ${cfg.usdToClp} · Descuento saldo USD: ${cfg.balanceDiscountUsd}\n`
     : "";
 
   const lines = [header.join(sep)];
   for (const g of games) {
     const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
     const cost = sale?.costClp ?? null;
-    const p1 = sale?.primaria1 ?? null;
-    const sec = sale?.secundaria ?? null;
-    const margenP1 = cost && p1 ? Math.round(((p1 - cost) / cost) * 100) : "";
-    const margenSec = cost && sec ? Math.round(((sec - cost) / cost) * 100) : "";
+    const margen = cost && sale?.netProfit
+      ? Math.round((sale.netProfit / cost) * 100)
+      : "";
     lines.push(
       [
         g.id,
@@ -482,11 +482,11 @@ route("GET", "/games/export.csv", async (req, res) => {
         g.discountPercent,
         g.discountEndAt ?? "",
         cost ?? "",
-        p1 ?? "",
-        sale?.primaria2 ?? "",
-        sec ?? "",
-        margenP1,
-        margenSec,
+        sale?.primaria ?? "",
+        sale?.secundaria ?? "",
+        sale?.totalRevenue ?? "",
+        sale?.netProfit ?? "",
+        margen,
         g.notes,
       ]
         .map(escape)
@@ -572,7 +572,7 @@ route("GET", "/games/export-supabase.csv", async (req, res) => {
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
     // Pricing: per hardware platform × account type
-    const primaria = sale?.primaria1 ?? null;
+    const primaria = sale?.primaria ?? null;
     const secundaria = sale?.secundaria ?? null;
     const pricing: Record<string, Record<string, number | null>> = {};
     for (const p of hwPlatforms.length ? hwPlatforms : ["PS4"]) {
@@ -645,8 +645,7 @@ route("GET", "/games/export.json", async (req, res) => {
 
       // CLP pricing
       cost_clp: sale?.costClp ?? null,
-      primaria1_clp: sale?.primaria1 ?? null,
-      primaria2_clp: sale?.primaria2 ?? null,
+      primaria_clp: sale?.primaria ?? null,
       secundaria_clp: sale?.secundaria ?? null,
 
       // Enriched detail (from product page scrape)
@@ -741,7 +740,7 @@ route("GET", "/games/export-supabase", async (req, res) => {
       }
     }
 
-    const primaria = sale?.primaria1 ?? null;
+    const primaria = sale?.primaria ?? null;
     const secundaria = sale?.secundaria ?? null;
     const pricing: Record<string, Record<string, number | null>> = {};
     for (const p of hwPlatforms.length ? hwPlatforms : ["PS4"]) {

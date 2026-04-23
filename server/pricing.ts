@@ -2,9 +2,12 @@ import type { PricingSettings } from "./store";
 
 export interface SalePrices {
   costClp: number;
-  primaria1: number;
-  primaria2: number;
+  primaria: number;
   secundaria: number;
+  /** Revenue if both primaria slots sell + 1 secundaria */
+  totalRevenue: number;
+  /** Net profit from a full sell-through (2× primaria + 1× secundaria) */
+  netProfit: number;
 }
 
 function roundTo(value: number, step: number): number {
@@ -40,12 +43,15 @@ export function computeSalePrices(
   const price = priceCents / 100;
   const rate = exchangeRate(currency, cfg);
   const discount = balanceDiscount(currency, cfg);
-  // Actual cash outlay: price × what_we_pay_per_unit × exchange_rate
   const cost = price * discount * rate;
+  const primaria = roundTo(cost * cfg.primariaMult, cfg.roundTo);
+  const secundaria = roundTo(cost * cfg.secundariaMult, cfg.roundTo);
+  const totalRevenue = primaria * 2 + secundaria;
   return {
     costClp: roundTo(cost, cfg.roundTo),
-    primaria1: roundTo(cost * cfg.primaria1Mult, cfg.roundTo),
-    primaria2: roundTo(cost * cfg.primaria2Mult, cfg.roundTo),
-    secundaria: roundTo(cost * cfg.secundariaMult, cfg.roundTo),
+    primaria,
+    secundaria,
+    totalRevenue,
+    netProfit: totalRevenue - roundTo(cost, cfg.roundTo),
   };
 }

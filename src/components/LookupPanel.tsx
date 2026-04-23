@@ -131,8 +131,7 @@ export function LookupPanel() {
                 <th>Precio PSN</th>
                 <th>Desc.</th>
                 <th>Costo CLP</th>
-                <th>Primaria 1</th>
-                <th>Primaria 2</th>
+                <th>Primaria</th>
                 <th>Secundaria</th>
               </tr>
             </thead>
@@ -178,8 +177,7 @@ export function LookupPanel() {
                     ) : "—"}
                   </td>
                   <td>{r.game ? fmtCLP(r.game.costClp) : "—"}</td>
-                  <td>{r.game ? fmtCLP(r.game.primaria1) : "—"}</td>
-                  <td>{r.game ? fmtCLP(r.game.primaria2) : "—"}</td>
+                  <td>{r.game ? fmtCLP(r.game.primaria) : "—"}</td>
                   <td>{r.game ? fmtCLP(r.game.secundaria) : "—"}</td>
                 </tr>
               ))}
