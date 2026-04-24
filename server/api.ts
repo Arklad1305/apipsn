@@ -15,7 +15,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { store, type Game, type WatchedGame, type SupabaseConfig } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
-  debugScrapePage,
   inspectProductTypes,
   PersistedQueryNotFoundError,
   PsnApiError,
@@ -144,11 +143,13 @@ function gameDbKey(g: Game): string {
   return `${g.platform}:${g.region}:${g.id}`;
 }
 
-/** Save product detail. Does NOT touch imageUrl — the tile image from
- *  the HTML grid (440×440) is the correct cover art; the JSON media
- *  roles like PORTRAIT_BANNER are actually the 8K landscape banner. */
+/** Save product detail and update the game's imageUrl to the portrait if available. */
 function saveDetailAndUpdateImage(game: Game, detail: import("./psn-product").ProductDetail): void {
   store.setProductDetail(game.id, detail);
+  const portrait = detail.media?.portraitUrl;
+  if (portrait && portrait !== game.imageUrl) {
+    store.patchGame(gameDbKey(game), { imageUrl: portrait });
+  }
 }
 
 const ADD_ON_PATTERN = /\b(dlc|season pass|avatar|theme|currency pack|coin pack|point pack)\b/i;
@@ -1193,17 +1194,6 @@ route("POST", "/games/lookup", async (req, res) => {
   });
 
   sendJson(res, 200, { results });
-});
-
-// GET /debug/scrape-images — scrape ONE page and show what images we extract
-route("GET", "/debug/scrape-images", async (_req, res) => {
-  try {
-    const cfg = store.getPsn();
-    const report = await debugScrapePage(cfg);
-    sendJson(res, 200, report);
-  } catch (e) {
-    sendJson(res, 502, { error: "scrape_failed", message: (e as Error).message });
-  }
 });
 
 // GET /debug/product-types — one-shot reconnaissance used to design the
