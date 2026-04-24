@@ -16,7 +16,6 @@ import { store, type Game, type WatchedGame, type SupabaseConfig } from "./store
 import { computeSalePrices } from "./pricing";
 import {
   inspectProductTypes,
-  debugScrapePage,
   PersistedQueryNotFoundError,
   PsnApiError,
 } from "./psn";
@@ -1206,25 +1205,6 @@ route("GET", "/debug/product-types", async (_req, res) => {
     const cfg = store.getPsn();
     const report = await inspectProductTypes(cfg);
     sendJson(res, 200, report);
-  } catch (e) {
-    if (e instanceof PsnApiError) {
-      return sendJson(res, 502, {
-        error: "psn_api_error",
-        message: (e as Error).message,
-      });
-    }
-    sendJson(res, 500, { error: "internal", message: (e as Error).message });
-  }
-});
-
-// GET /debug/scrape-images — scrape one page of PSN deals and diagnose image
-// extraction. Returns { url, htmlLength, hasNextData, jsonProductCount,
-// tileImageCount, products[], firstTileHtmlSnippet }.
-route("GET", "/debug/scrape-images", async (_req, res) => {
-  try {
-    const cfg = store.getPsn();
-    const result = await debugScrapePage(cfg);
-    sendJson(res, 200, result);
   } catch (e) {
     if (e instanceof PsnApiError) {
       return sendJson(res, 502, {
