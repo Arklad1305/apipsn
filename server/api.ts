@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { store, type Game, type WatchedGame, type SupabaseConfig } from "./store";
 import { computeSalePrices } from "./pricing";
 import {
+  debugScrapePage,
   inspectProductTypes,
   PersistedQueryNotFoundError,
   PsnApiError,
@@ -1194,6 +1195,17 @@ route("POST", "/games/lookup", async (req, res) => {
   });
 
   sendJson(res, 200, { results });
+});
+
+// GET /debug/scrape-images — scrape ONE page and show what images we extract
+route("GET", "/debug/scrape-images", async (_req, res) => {
+  try {
+    const cfg = store.getPsn();
+    const report = await debugScrapePage(cfg);
+    sendJson(res, 200, report);
+  } catch (e) {
+    sendJson(res, 502, { error: "scrape_failed", message: (e as Error).message });
+  }
 });
 
 // GET /debug/product-types — one-shot reconnaissance used to design the
