@@ -143,10 +143,13 @@ function gameDbKey(g: Game): string {
   return `${g.platform}:${g.region}:${g.id}`;
 }
 
-/** Save product detail. Does NOT overwrite imageUrl — the tile image
- *  extracted from the HTML grid (440×440) is the correct cover art. */
+/** Save product detail and update the game's imageUrl to the portrait if available. */
 function saveDetailAndUpdateImage(game: Game, detail: import("./psn-product").ProductDetail): void {
   store.setProductDetail(game.id, detail);
+  const portrait = detail.media?.portraitUrl;
+  if (portrait && portrait !== game.imageUrl) {
+    store.patchGame(gameDbKey(game), { imageUrl: portrait });
+  }
 }
 
 const ADD_ON_PATTERN = /\b(dlc|season pass|avatar|theme|currency pack|coin pack|point pack)\b/i;
@@ -605,12 +608,12 @@ route("GET", "/games/export-supabase.csv", async (req, res) => {
       .join("-");
     const sku = `PS-${slug}-001`;
 
-    // Images: [{alt, url}] — cover art from grid tile first, then hero/banner
+    // Images: [{alt, url}] — portrait (box art) first, then carousel/screenshots
     const images: Array<{ alt: string; url: string }> = [];
-    if (g.imageUrl) images.push({ alt: g.name, url: g.imageUrl });
-    if (detail?.media?.heroUrl && !images.some((x) => x.url === detail.media.heroUrl)) {
-      images.push({ alt: g.name, url: detail.media.heroUrl });
-    }
+    const portraitUrl = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl) images.push({ alt: g.name, url: portraitUrl });
+    const coverUrl = detail?.media?.coverUrl;
+    if (coverUrl && coverUrl !== portraitUrl) images.push({ alt: g.name, url: coverUrl });
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {
         if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
@@ -728,7 +731,7 @@ route("GET", "/games/export.json", async (req, res) => {
       subtitle_languages: detail?.subtitleLanguages ?? [],
 
       // Media
-      portrait_url: g.imageUrl,
+      portrait_url: detail?.media?.portraitUrl ?? g.imageUrl,
       cover_url: detail?.media?.coverUrl ?? null,
       hero_url: detail?.media?.heroUrl ?? null,
       screenshots: detail?.media?.screenshots ?? [],
@@ -784,10 +787,10 @@ route("GET", "/games/export-supabase", async (req, res) => {
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
     const images: Array<{ alt: string; url: string }> = [];
-    if (g.imageUrl) images.push({ alt: g.name, url: g.imageUrl });
-    if (detail?.media?.heroUrl && !images.some((x) => x.url === detail.media.heroUrl)) {
-      images.push({ alt: g.name, url: detail.media.heroUrl });
-    }
+    const portraitUrl2 = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl2) images.push({ alt: g.name, url: portraitUrl2 });
+    const coverUrl2 = detail?.media?.coverUrl;
+    if (coverUrl2 && coverUrl2 !== portraitUrl2) images.push({ alt: g.name, url: coverUrl2 });
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {
         if (!images.some((x) => x.url === img)) images.push({ alt: g.name, url: img });
@@ -868,11 +871,11 @@ route("POST", "/games/publish-supabase", async (req, res) => {
     const platformAvailability: Record<string, boolean> = {};
     for (const p of hwPlatforms) platformAvailability[p] = true;
 
-    // images[0] = cover art from the grid tile (440×440), never the banner.
     const images: Array<{ alt: string; url: string }> = [];
-    if (g.imageUrl) images.push({ alt: g.name, url: g.imageUrl });
-    if (detail?.media?.heroUrl && !images.some((x) => x.url === detail.media.heroUrl)) {
-      images.push({ alt: g.name, url: detail.media.heroUrl });
+    const portraitUrl = detail?.media?.portraitUrl ?? g.imageUrl;
+    if (portraitUrl) images.push({ alt: g.name, url: portraitUrl });
+    if (detail?.media?.coverUrl && detail.media.coverUrl !== portraitUrl) {
+      images.push({ alt: g.name, url: detail.media.coverUrl });
     }
     if (detail?.carouselImages) {
       for (const img of detail.carouselImages) {

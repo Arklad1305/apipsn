@@ -347,16 +347,9 @@ function extractTileImages(html: string): Map<string, string> {
   }
 
   const imgs: Array<{ url: string; pos: number }> = [];
-  // Match both src (fallback) and srcset attributes with w=440 variant
-  const imgRe = /data-qa="[^"]*game-art[^"]*image[^"]*"[^>]*(?:srcset="([^"]*\?w=440[^"]*)"|src="([^"]+)")/g;
+  const imgRe = /data-qa="[^"]*#game-art#image#image"[^>]*\bsrc="([^"]+)"/g;
   while ((m = imgRe.exec(html)) !== null) {
-    // Prefer srcset w=440 version (m[1]), fallback to src (m[2])
-    let url = m[1] || m[2];
-    if (!url) continue;
-    // Extract first URL from srcset if it contains multiple (comma-separated)
-    if (url.includes(",")) url = url.split(",")[0].trim().split(/\s+/)[0];
-    url = url.replace(/&amp;/g, "&");
-    imgs.push({ url, pos: m.index });
+    imgs.push({ url: m[1].replace(/&amp;/g, "&"), pos: m.index });
   }
 
   for (let i = 0; i < metas.length; i++) {
