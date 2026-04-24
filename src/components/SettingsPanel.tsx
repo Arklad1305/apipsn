@@ -10,6 +10,7 @@ import type {
   SupabaseConfig,
 } from "../types";
 import { PLATFORM_LABELS } from "../types";
+import { DebugScrapeModal } from "./DebugScrapeModal";
 
 const SOURCE_DEFAULT_URLS: Record<string, string> = {
   "psn:us": "https://store.playstation.com/en-us/category/deals",
@@ -29,7 +30,7 @@ interface Props {
   onSaved: (s: SettingsResponse) => void;
 }
 
-type SectionId = "pricing" | "sources" | "psn" | "competitors" | "supabase";
+type SectionId = "pricing" | "sources" | "psn" | "competitors" | "supabase" | "debug";
 
 const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
   { id: "pricing", label: "Precios", hint: "Tipo de cambio y multiplicadores" },
@@ -37,6 +38,7 @@ const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
   { id: "psn", label: "PSN", hint: "Región y categoría de ofertas" },
   { id: "competitors", label: "Competencia", hint: "Tiendas a scrapear" },
   { id: "supabase", label: "Supabase", hint: "Publicación directa a tu tienda" },
+  { id: "debug", label: "Diagnóstico", hint: "Test de scraping PSN" },
 ];
 
 export function SettingsPanel({ initial, onSaved }: Props) {
@@ -51,6 +53,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
   const [tcUpdating, setTcUpdating] = useState(false);
   const [tcMsg, setTcMsg] = useState<string>("");
   const [active, setActive] = useState<SectionId>("pricing");
+  const [debugModalOpen, setDebugModalOpen] = useState(false);
 
   const refs = {
     pricing: useRef<HTMLDivElement>(null),
@@ -58,6 +61,7 @@ export function SettingsPanel({ initial, onSaved }: Props) {
     psn: useRef<HTMLDivElement>(null),
     competitors: useRef<HTMLDivElement>(null),
     supabase: useRef<HTMLDivElement>(null),
+    debug: useRef<HTMLDivElement>(null),
   };
 
   useEffect(() => {
@@ -458,6 +462,24 @@ export function SettingsPanel({ initial, onSaved }: Props) {
           </div>
         </section>
 
+        <section ref={refs.debug} className="settings-section" id="debug">
+          <header className="settings-section-header">
+            <h3>Diagnóstico</h3>
+            <p className="help">
+              Scrapea una página de PSN para verificar que estamos extrayendo las imágenes correctas.
+            </p>
+          </header>
+          <div style={{ padding: "1rem 0" }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setDebugModalOpen(true)}
+            >
+              Test de scraping PSN
+            </button>
+          </div>
+        </section>
+
         <div className="settings-save-bar">
           <span className="muted">
             {dirty ? "Hay cambios sin guardar" : "Todo al día"}
@@ -467,6 +489,11 @@ export function SettingsPanel({ initial, onSaved }: Props) {
           </button>
         </div>
       </div>
+
+      <DebugScrapeModal
+        isOpen={debugModalOpen}
+        onClose={() => setDebugModalOpen(false)}
+      />
     </section>
   );
 }
