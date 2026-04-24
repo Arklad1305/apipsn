@@ -143,6 +143,15 @@ function gameDbKey(g: Game): string {
   return `${g.platform}:${g.region}:${g.id}`;
 }
 
+/** Save product detail and update the game's imageUrl to the portrait if available. */
+function saveDetailAndUpdateImage(game: Game, detail: import("./psn-product").ProductDetail): void {
+  store.setProductDetail(game.id, detail);
+  const portrait = detail.media?.portraitUrl;
+  if (portrait && portrait !== game.imageUrl) {
+    store.patchGame(gameDbKey(game), { imageUrl: portrait });
+  }
+}
+
 const ADD_ON_PATTERN = /\b(dlc|season pass|avatar|theme|currency pack|coin pack|point pack)\b/i;
 const PREMIUM_EDITION = /\b(deluxe|ultimate|complete|goty|game of the year|digital edition|launch edition)\b/i;
 
@@ -845,7 +854,7 @@ route("POST", "/games/publish-supabase", async (req, res) => {
     if (g.platform === "psn" && !store.getProductDetail(g.id)) {
       try {
         const d = await fetchProductDetail(g.id, g.storeUrl || "", psnCfg.region);
-        store.setProductDetail(g.id, d);
+        saveDetailAndUpdateImage(g, d);
       } catch { /* publish will use g.imageUrl as fallback */ }
       await new Promise((r) => setTimeout(r, 300));
     }
@@ -945,7 +954,7 @@ route("POST", "/games/enrich", async (req, res) => {
     try {
       const cfg = store.getPsn();
       const detail = await fetchProductDetail(g.id, g.storeUrl || "", cfg.region);
-      store.setProductDetail(g.id, detail);
+      saveDetailAndUpdateImage(g, detail);
       results.push({ id: g.id, name: g.name, ok: true });
     } catch (e) {
       results.push({ id: g.id, name: g.name, ok: false, error: (e as Error).message });
@@ -1231,7 +1240,7 @@ route("POST", "/games/:id/detail/refresh", async (_req, res, params) => {
       game.storeUrl || "",
       cfg.region
     );
-    store.setProductDetail(game.id, detail);
+    saveDetailAndUpdateImage(game, detail);
     sendJson(res, 200, detail);
   } catch (e) {
     if (e instanceof PsnApiError) {
