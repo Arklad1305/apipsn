@@ -18,7 +18,6 @@ import {
   inspectProductTypes,
   PersistedQueryNotFoundError,
   PsnApiError,
-  debugScrapePage,
 } from "./psn";
 import {
   fetchCompetitor,
@@ -1206,25 +1205,6 @@ route("GET", "/debug/product-types", async (_req, res) => {
     const cfg = store.getPsn();
     const report = await inspectProductTypes(cfg);
     sendJson(res, 200, report);
-  } catch (e) {
-    if (e instanceof PsnApiError) {
-      return sendJson(res, 502, {
-        error: "psn_api_error",
-        message: (e as Error).message,
-      });
-    }
-    sendJson(res, 500, { error: "internal", message: (e as Error).message });
-  }
-});
-
-// GET /debug/scrape-images — test image extraction from PSN HTML.
-// Scrapes one page and reports what images were extracted from the grid
-// (srcset/src attributes), plus available media roles from the JSON.
-route("GET", "/debug/scrape-images", async (_req, res) => {
-  try {
-    const cfg = store.getPsn();
-    const result = await debugScrapePage(cfg);
-    sendJson(res, 200, result);
   } catch (e) {
     if (e instanceof PsnApiError) {
       return sendJson(res, 502, {
