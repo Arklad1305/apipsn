@@ -165,9 +165,72 @@ export function ProductDetailPanel({ game, onClose, onGameUpdated }: Props) {
 
           {loading && !detail && <div className="loading">Trayendo ficha…</div>}
 
+          {detail && (
+            <>
+              {/* Carrusel de imágenes: banner, portada, y capturas */}
+              {(detail.media.heroUrl ||
+                detail.media.coverUrl ||
+                detail.media.screenshots.length > 0) && (
+                <>
+                  <h3 className="section-title">Galería</h3>
+                  <div className="gallery">
+                    {detail.media.heroUrl && (
+                      <button
+                        className="gallery-thumb"
+                        onClick={() => setLightboxIdx(0)}
+                        title="Banner del juego"
+                      >
+                        <img src={detail.media.heroUrl} alt="Banner" loading="lazy" />
+                      </button>
+                    )}
+                    {detail.media.coverUrl &&
+                      detail.media.coverUrl !== detail.media.heroUrl && (
+                        <button
+                          className="gallery-thumb"
+                          onClick={() =>
+                            setLightboxIdx(detail.media.heroUrl ? 1 : 0)
+                          }
+                          title="Portada del juego"
+                        >
+                          <img src={detail.media.coverUrl} alt="Portada" loading="lazy" />
+                        </button>
+                      )}
+                    {detail.media.screenshots.map((url, i) => {
+                      const idx =
+                        (detail.media.heroUrl ? 1 : 0) +
+                        (detail.media.coverUrl && detail.media.coverUrl !== detail.media.heroUrl
+                          ? 1
+                          : 0) +
+                        i;
+                      return (
+                        <button
+                          key={url}
+                          className="gallery-thumb"
+                          onClick={() => setLightboxIdx(idx)}
+                          title="Captura de pantalla"
+                        >
+                          <img src={url} alt="" loading="lazy" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <h3 className="section-title">Descripción</h3>
+              {detail.shortDescription && (
+                <p className="detail-short">{detail.shortDescription}</p>
+              )}
+              <div
+                className="detail-description"
+                dangerouslySetInnerHTML={{ __html: detail.description }}
+              />
+            </>
+          )}
+
           {(psnVideo || youtubeId) && (
             <>
-              <h3 className="section-title">Video</h3>
+              <h3 className="section-title">Vídeo</h3>
               <div className="detail-video">
                 {psnVideo ? (
                   <video
@@ -179,43 +242,12 @@ export function ProductDetailPanel({ game, onClose, onGameUpdated }: Props) {
                 ) : youtubeId ? (
                   <iframe
                     src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-                    title={`Video de ${game.name}`}
+                    title={`Vídeo de ${game.name}`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
                 ) : null}
               </div>
-            </>
-          )}
-
-          {detail && (
-            <>
-              <h3 className="section-title">Descripción</h3>
-              {detail.shortDescription && (
-                <p className="detail-short">{detail.shortDescription}</p>
-              )}
-              <div
-                className="detail-description"
-                dangerouslySetInnerHTML={{ __html: detail.description }}
-              />
-
-              {detail.media.screenshots.length > 0 && (
-                <>
-                  <h3 className="section-title">Galería</h3>
-                  <div className="gallery">
-                    {detail.media.screenshots.map((url, i) => (
-                      <button
-                        key={url}
-                        className="gallery-thumb"
-                        onClick={() => setLightboxIdx(i)}
-                        title="Ver en grande"
-                      >
-                        <img src={url} alt="" loading="lazy" />
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
             </>
           )}
         </div>
@@ -254,45 +286,137 @@ export function ProductDetailPanel({ game, onClose, onGameUpdated }: Props) {
           </div>
 
           {detail && (
-            <div className="detail-card">
-              <h3 className="section-title">Datos</h3>
-              <dl className="kv">
-                {detail.publisher && (
-                  <>
-                    <dt>Editor</dt>
-                    <dd>{detail.publisher}</dd>
-                  </>
-                )}
-                {detail.developer && (
-                  <>
-                    <dt>Desarrollo</dt>
-                    <dd>{detail.developer}</dd>
-                  </>
-                )}
-                {detail.genres.length > 0 && (
-                  <>
-                    <dt>Géneros</dt>
-                    <dd>{detail.genres.join(", ")}</dd>
-                  </>
-                )}
-                {detail.voiceLanguages.length > 0 && (
-                  <>
-                    <dt>Voces</dt>
-                    <dd>{detail.voiceLanguages.join(", ")}</dd>
-                  </>
-                )}
-                {detail.subtitleLanguages.length > 0 && (
-                  <>
-                    <dt>Subtítulos</dt>
-                    <dd>{detail.subtitleLanguages.join(", ")}</dd>
-                  </>
-                )}
-                <dt>Actualizado</dt>
-                <dd className="muted">
+            <>
+              <div className="detail-card">
+                <h3 className="section-title">Información General</h3>
+                <dl className="kv">
+                  {detail.releaseDate && (
+                    <>
+                      <dt>Lanzamiento</dt>
+                      <dd>{formatDate(detail.releaseDate)}</dd>
+                    </>
+                  )}
+                  {detail.publisher && (
+                    <>
+                      <dt>Editor</dt>
+                      <dd>{detail.publisher}</dd>
+                    </>
+                  )}
+                  {detail.developer && (
+                    <>
+                      <dt>Desarrollo</dt>
+                      <dd>{detail.developer}</dd>
+                    </>
+                  )}
+                  {detail.genres.length > 0 && (
+                    <>
+                      <dt>Géneros</dt>
+                      <dd>{detail.genres.join(", ")}</dd>
+                    </>
+                  )}
+                  {detail.ageRating && (
+                    <>
+                      <dt>Clasificación</dt>
+                      <dd>{detail.ageRating}</dd>
+                    </>
+                  )}
+                </dl>
+              </div>
+
+              <div className="detail-card">
+                <h3 className="section-title">Características</h3>
+                <dl className="kv">
+                  {detail.gameFeatures.length > 0 && (
+                    <>
+                      <dt>Características</dt>
+                      <dd>
+                        <ul style={{ margin: 0, paddingLeft: "1.2em" }}>
+                          {detail.gameFeatures.map((f) => (
+                            <li key={f} style={{ fontSize: "0.95em" }}>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </dd>
+                    </>
+                  )}
+                  {detail.playerCount && (
+                    <>
+                      <dt>Jugadores</dt>
+                      <dd>{detail.playerCount}</dd>
+                    </>
+                  )}
+                  {detail.onlinePlayerCount && (
+                    <>
+                      <dt>En línea</dt>
+                      <dd>{detail.onlinePlayerCount}</dd>
+                    </>
+                  )}
+                  {detail.psPlusRequired && (
+                    <>
+                      <dt>PS Plus</dt>
+                      <dd>Se requiere suscripción</dd>
+                    </>
+                  )}
+                  {detail.inGamePurchases && (
+                    <>
+                      <dt>Compras en juego</dt>
+                      <dd>
+                        {detail.inGamePurchases === "optional"
+                          ? "Opcionales"
+                          : "Disponibles"}
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              </div>
+
+              <div className="detail-card">
+                <h3 className="section-title">Requisitos Técnicos</h3>
+                <dl className="kv">
+                  {detail.fileSize && (
+                    <>
+                      <dt>Tamaño</dt>
+                      <dd>{detail.fileSize}</dd>
+                    </>
+                  )}
+                  {detail.psVersion && (
+                    <>
+                      <dt>Versión</dt>
+                      <dd>{detail.psVersion}</dd>
+                    </>
+                  )}
+                  {detail.voiceLanguages.length > 0 && (
+                    <>
+                      <dt>Idiomas (voces)</dt>
+                      <dd>{detail.voiceLanguages.join(", ")}</dd>
+                    </>
+                  )}
+                  {detail.subtitleLanguages.length > 0 && (
+                    <>
+                      <dt>Subtítulos</dt>
+                      <dd>{detail.subtitleLanguages.join(", ")}</dd>
+                    </>
+                  )}
+                </dl>
+              </div>
+
+              {detail.contentDescriptors.length > 0 && (
+                <div className="detail-card">
+                  <h3 className="section-title">Contenido Descriptores</h3>
+                  <p className="muted" style={{ fontSize: "0.95em" }}>
+                    {detail.contentDescriptors.join(", ")}
+                  </p>
+                </div>
+              )}
+
+              <div className="detail-card">
+                <p className="muted" style={{ fontSize: "0.85em", margin: 0 }}>
+                  Ficha actualizada:{" "}
                   {new Date(detail.fetchedAt).toLocaleString("es-CL")}
-                </dd>
-              </dl>
-            </div>
+                </p>
+              </div>
+            </>
           )}
 
           <div className="detail-card">
@@ -344,7 +468,13 @@ export function ProductDetailPanel({ game, onClose, onGameUpdated }: Props) {
 
       {lightboxIdx != null && detail && (
         <Lightbox
-          images={detail.media.screenshots}
+          images={[
+            ...(detail.media.heroUrl ? [detail.media.heroUrl] : []),
+            ...(detail.media.coverUrl && detail.media.coverUrl !== detail.media.heroUrl
+              ? [detail.media.coverUrl]
+              : []),
+            ...detail.media.screenshots,
+          ]}
           index={lightboxIdx}
           onChange={setLightboxIdx}
           onClose={() => setLightboxIdx(null)}
