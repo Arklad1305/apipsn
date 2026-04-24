@@ -347,7 +347,7 @@ function extractTileImages(html: string): Map<string, string> {
   }
 
   const imgs: Array<{ url: string; pos: number }> = [];
-  const imgRe = /data-qa="[^"]*#game-art#image#image"[^>]*\bsrc="([^"]+)"/g;
+  const imgRe = /data-qa="[^"]*game-art[^"]*image[^"]*"[^>]*\bsrc="([^"]+)"/g;
   while ((m = imgRe.exec(html)) !== null) {
     imgs.push({ url: m[1].replace(/&amp;/g, "&"), pos: m.index });
   }
