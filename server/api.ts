@@ -839,6 +839,18 @@ route("POST", "/games/publish-supabase", async (req, res) => {
   const cfg = store.getSettings();
   const tableName = supabaseCfg.tableName || "playstation_games";
 
+  // Auto-fetch product details for PSN games missing cached detail
+  const psnCfg = store.getPsn();
+  for (const g of games) {
+    if (g.platform === "psn" && !store.getProductDetail(g.id)) {
+      try {
+        const d = await fetchProductDetail(g.id, g.storeUrl || "", psnCfg.region);
+        store.setProductDetail(g.id, d);
+      } catch { /* publish will use g.imageUrl as fallback */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+
   const rows = games.map((g) => {
     const sale = computeSalePrices(g.priceDiscountedCents, cfg, g.currency || "USD");
     const detail = store.getProductDetail(g.id);
