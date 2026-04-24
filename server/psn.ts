@@ -96,6 +96,9 @@ interface RawProduct {
     discountText?: string;
     endTime?: string;
   };
+  /** Cover/portrait image extracted from the HTML grid tile (440×440).
+   *  This is the actual box art shown in the store, not the banner. */
+  tileImageUrl?: string;
 }
 
 /** Shape returned by `inspectProductTypes` — used by the debug route to
@@ -169,29 +172,31 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
   const name = raw.name || raw.title || "";
   if (!name) return null;
 
-  // Image: prefer portrait/cover art (the vertical box art shown in the store grid).
-  // Fallback to master/hero if no portrait available.
-  let imageUrl: string | null = null;
-  const media = raw.media || [];
-  const preferredPortrait = ["PORTRAIT_BANNER", "GAMEHUB_COVER_ART", "BOXART"];
-  const fallbackRoles = ["MASTER", "PREVIEW_GAME_ART"];
-  for (const m of media) {
-    const role = String(m?.role || "").toUpperCase();
-    if (preferredPortrait.includes(role)) {
-      imageUrl = m.url ?? null;
-      if (imageUrl) break;
-    }
-  }
+  // Image: prefer the tile image extracted from the HTML grid (the actual
+  // 440×440 cover art the store displays). Fall back to media roles from JSON.
+  let imageUrl: string | null = raw.tileImageUrl || null;
   if (!imageUrl) {
+    const media = raw.media || [];
+    const preferredPortrait = ["PORTRAIT_BANNER", "GAMEHUB_COVER_ART", "BOXART"];
+    const fallbackRoles = ["MASTER", "PREVIEW_GAME_ART"];
     for (const m of media) {
       const role = String(m?.role || "").toUpperCase();
-      if (fallbackRoles.includes(role)) {
+      if (preferredPortrait.includes(role)) {
         imageUrl = m.url ?? null;
         if (imageUrl) break;
       }
     }
+    if (!imageUrl) {
+      for (const m of media) {
+        const role = String(m?.role || "").toUpperCase();
+        if (fallbackRoles.includes(role)) {
+          imageUrl = m.url ?? null;
+          if (imageUrl) break;
+        }
+      }
+    }
+    if (!imageUrl && media[0]?.url) imageUrl = media[0].url;
   }
-  if (!imageUrl && media[0]?.url) imageUrl = media[0].url;
 
   const platforms = Array.isArray(raw.platforms)
     ? raw.platforms.join(",")
@@ -322,6 +327,44 @@ function collectProducts(node: unknown, out: Map<string, RawProduct>): void {
   for (const v of Object.values(obj)) collectProducts(v, out);
 }
 
+/**
+ * Extract cover/portrait image URLs from the HTML grid tiles.
+ * Each tile has a `data-telemetry-meta` with the product ID and an `<img>`
+ * with the actual cover art (the 440×440 portrait image the store displays).
+ */
+function extractTileImages(html: string): Map<string, string> {
+  const map = new Map<string, string>();
+
+  const metas: Array<{ id: string; pos: number }> = [];
+  const metaRe = /data-telemetry-meta=["'](\{[^"']*\})["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = metaRe.exec(html)) !== null) {
+    try {
+      const raw = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+      const json = JSON.parse(raw);
+      if (json.id) metas.push({ id: json.id, pos: m.index });
+    } catch { /* skip malformed */ }
+  }
+
+  const imgs: Array<{ url: string; pos: number }> = [];
+  const imgRe = /data-qa="[^"]*#game-art#image#image"[^>]*\bsrc="([^"]+)"/g;
+  while ((m = imgRe.exec(html)) !== null) {
+    imgs.push({ url: m[1].replace(/&amp;/g, "&"), pos: m.index });
+  }
+
+  for (let i = 0; i < metas.length; i++) {
+    const meta = metas[i];
+    const nextPos = metas[i + 1]?.pos ?? Infinity;
+    const img = imgs.find((x) => x.pos > meta.pos && x.pos < nextPos);
+    if (img) {
+      // Strip ?w=440 resize param → full resolution base URL
+      const qIdx = img.url.indexOf("?");
+      map.set(meta.id, qIdx > 0 ? img.url.substring(0, qIdx) : img.url);
+    }
+  }
+  return map;
+}
+
 function buildCategoryUrl(cfg: PsnConfig, page: number): string {
   // region like "en-US" → "en-us"
   const regionPath = cfg.region.toLowerCase();
@@ -349,11 +392,16 @@ export async function* iterCategoryProducts(
     const found = new Map<string, RawProduct>();
     collectProducts(data, found);
 
+    // Extract the portrait/cover images rendered in the HTML grid tiles.
+    const tileImages = extractTileImages(html);
+
     let newOnThisPage = 0;
     for (const [id, p] of found) {
       if (seen.has(id)) continue;
       seen.add(id);
       newOnThisPage++;
+      const tileImg = tileImages.get(id);
+      if (tileImg) p.tileImageUrl = tileImg;
       yield p;
     }
     if (newOnThisPage === 0) break; // pagination exhausted
