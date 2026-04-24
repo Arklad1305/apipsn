@@ -407,3 +407,44 @@ export async function* iterCategoryProducts(
     if (newOnThisPage === 0) break; // pagination exhausted
   }
 }
+
+/** Debug: scrape one page and report exactly what images we find. */
+export async function debugScrapePage(cfg: PsnConfig, page = 1) {
+  const url = buildCategoryUrl(cfg, page);
+  const html = await fetchHtml(url, cfg.region);
+  const data = extractNextData(html);
+
+  const jsonProducts = new Map<string, RawProduct>();
+  if (data) collectProducts(data, jsonProducts);
+
+  const tileImages = extractTileImages(html);
+
+  const products = [...jsonProducts.entries()].slice(0, 5).map(([id, raw]) => {
+    const mediaRoles = (raw.media || []).map((m) => ({
+      role: m.role || "?",
+      url: (m.url || "").substring(0, 80) + "…",
+    }));
+    return {
+      id,
+      name: raw.name || raw.title || "?",
+      tileImageFromHtml: tileImages.get(id) || null,
+      mediaRolesFromJson: mediaRoles,
+      tileImageUrl_assigned: !!tileImages.get(id),
+    };
+  });
+
+  // Also show raw HTML snippet for first tile to debug regex
+  const firstTileSnippet = html.match(
+    /data-telemetry-meta="[^"]*"[\s\S]{0,2000}?game-art[\s\S]{0,500}?(?:srcset|src)="[^"]+"/
+  )?.[0]?.substring(0, 500) || null;
+
+  return {
+    url,
+    htmlLength: html.length,
+    hasNextData: !!data,
+    jsonProductCount: jsonProducts.size,
+    tileImageCount: tileImages.size,
+    products,
+    firstTileHtmlSnippet: firstTileSnippet,
+  };
+}
