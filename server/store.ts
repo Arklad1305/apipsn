@@ -133,16 +133,16 @@ const DEFAULT_HIT_PUBLISHERS: string[] = [
 ];
 
 const DEFAULT_SOURCES: ProviderSource[] = [
-  { platform: "psn", region: "us", enabled: true, categoryId: "" },
-  { platform: "psn", region: "br", enabled: true, categoryId: "3f772501-f6f8-49b7-abac-874a88ca4897" },
-  { platform: "xbox", region: "us", enabled: true },
-  { platform: "xbox", region: "br", enabled: true },
-  { platform: "xbox", region: "tr", enabled: true },
-  { platform: "nintendo", region: "us", enabled: true },
+  { platform: "psn", region: "us", enabled: true, categoryId: "3f772501-f6f8-49b7-abac-874a88ca4897" },
+  { platform: "psn", region: "br", enabled: false, categoryId: "" },
+  { platform: "xbox", region: "us", enabled: false },
+  { platform: "xbox", region: "br", enabled: false },
+  { platform: "xbox", region: "tr", enabled: false },
+  { platform: "nintendo", region: "us", enabled: false },
   { platform: "nintendo", region: "jp", enabled: false },
-  { platform: "steam", region: "us", enabled: true },
-  { platform: "steam", region: "br", enabled: true },
-  { platform: "steam", region: "tr", enabled: true },
+  { platform: "steam", region: "us", enabled: false },
+  { platform: "steam", region: "br", enabled: false },
+  { platform: "steam", region: "tr", enabled: false },
 ];
 
 const DEFAULT_COMPETITORS: CompetitorConfig[] = [
