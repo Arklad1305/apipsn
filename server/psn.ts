@@ -172,31 +172,16 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
   const name = raw.name || raw.title || "";
   if (!name) return null;
 
-  // Image: prefer the tile image extracted from the HTML grid (the actual
-  // 440×440 cover art the store displays). Fall back to media roles from JSON.
-  let imageUrl: string | null = raw.tileImageUrl || null;
-  if (!imageUrl) {
-    const media = raw.media || [];
-    const preferredPortrait = ["PORTRAIT_BANNER", "GAMEHUB_COVER_ART", "BOXART"];
-    const fallbackRoles = ["MASTER", "PREVIEW_GAME_ART"];
-    for (const m of media) {
-      const role = String(m?.role || "").toUpperCase();
-      if (preferredPortrait.includes(role)) {
-        imageUrl = m.url ?? null;
-        if (imageUrl) break;
-      }
+  const media = raw.media || [];
+  let imageUrl: string | null = null;
+  // MASTER is the actual cover/portrait image PSN uses.
+  for (const m of media) {
+    if (String(m?.role || "").toUpperCase() === "MASTER" && m.url) {
+      imageUrl = m.url;
+      break;
     }
-    if (!imageUrl) {
-      for (const m of media) {
-        const role = String(m?.role || "").toUpperCase();
-        if (fallbackRoles.includes(role)) {
-          imageUrl = m.url ?? null;
-          if (imageUrl) break;
-        }
-      }
-    }
-    if (!imageUrl && media[0]?.url) imageUrl = media[0].url;
   }
+  if (!imageUrl) imageUrl = raw.tileImageUrl || media[0]?.url || null;
 
   const platforms = Array.isArray(raw.platforms)
     ? raw.platforms.join(",")
