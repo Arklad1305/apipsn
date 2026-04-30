@@ -33,6 +33,7 @@ export interface Game {
   region: string;
   name: string;
   imageUrl: string | null;
+  bannerUrl?: string | null;
   storeUrl: string | null;
   platforms: string;
   currency: string;

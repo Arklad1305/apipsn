@@ -40,6 +40,7 @@ export const psnProvider: Provider = {
         id: game.id,
         name: game.name,
         imageUrl: game.imageUrl,
+        bannerUrl: game.bannerUrl,
         storeUrl,
         hardwarePlatforms: game.platforms,
         currency,

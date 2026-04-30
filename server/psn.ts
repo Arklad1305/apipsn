@@ -174,14 +174,20 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
 
   const media = raw.media || [];
   let imageUrl: string | null = null;
-  // MASTER is the actual cover/portrait image PSN uses.
+  let bannerUrl: string | null = null;
+
+  // MASTER is the actual cover/portrait image.
   for (const m of media) {
-    if (String(m?.role || "").toUpperCase() === "MASTER" && m.url) {
+    const role = String(m?.role || "").toUpperCase();
+    if (role === "MASTER" && m.url && !imageUrl) {
       imageUrl = m.url;
-      break;
+    }
+    if (role === "GAMEHUB_COVER_ART" && m.url && !bannerUrl) {
+      bannerUrl = m.url;
     }
   }
   if (!imageUrl) imageUrl = raw.tileImageUrl || media[0]?.url || null;
+  if (!bannerUrl) bannerUrl = raw.tileImageUrl || null;
 
   const platforms = Array.isArray(raw.platforms)
     ? raw.platforms.join(",")
@@ -216,6 +222,7 @@ export function normalizeProduct(raw: RawProduct, now: string): Game | null {
     region: "us",
     name,
     imageUrl,
+    bannerUrl,
     storeUrl: `https://store.playstation.com/en-us/product/${id}`,
     platforms,
     currency: "USD",

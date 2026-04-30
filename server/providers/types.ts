@@ -39,6 +39,7 @@ export interface RawDeal {
   id: string;
   name: string;
   imageUrl: string | null;
+  bannerUrl?: string | null;
   storeUrl: string | null;
   hardwarePlatforms: string;
   currency: string;

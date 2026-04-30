@@ -216,6 +216,7 @@ function toGameOut(g: Game, cfgPricing = store.getSettings()) {
     currency: g.currency || "USD",
     name: g.name,
     imageUrl: g.imageUrl,
+    bannerUrl: g.bannerUrl,
     storeUrl: g.storeUrl,
     platforms: g.platforms,
     priceOriginal:
@@ -365,6 +366,7 @@ route("POST", "/refresh", async (req, res) => {
               region: source.region,
               name: deal.name,
               imageUrl: deal.imageUrl,
+              bannerUrl: deal.bannerUrl,
               storeUrl: deal.storeUrl,
               platforms: deal.hardwarePlatforms,
               currency: deal.currency,
@@ -387,6 +389,7 @@ route("POST", "/refresh", async (req, res) => {
               ...existing,
               name: deal.name || existing.name,
               imageUrl: deal.imageUrl || existing.imageUrl,
+              bannerUrl: deal.bannerUrl || existing.bannerUrl,
               storeUrl: deal.storeUrl || existing.storeUrl,
               platforms: deal.hardwarePlatforms,
               currency: deal.currency,
